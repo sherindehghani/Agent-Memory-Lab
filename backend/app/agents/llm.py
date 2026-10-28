@@ -42,19 +42,23 @@ class LLMClient:
     api_key: str
     timeout: float
 
-    def complete_json(self, system: str, user: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    def complete_json(self, system: str, user: str, schema: dict[str, Any] | None = None,
+                      max_tokens: int = 4000, effort: str = "low") -> tuple[dict[str, Any], dict[str, Any]]:
         import anthropic
 
         client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout, max_retries=2)
         response = client.messages.create(
             model=self.model,
-            max_tokens=4000,
+            max_tokens=max_tokens,
             system=system,
-            output_config={"effort": "low", "format": {"type": "json_schema", "schema": PROPOSAL_SCHEMA}},
+            output_config={"effort": effort,
+                           "format": {"type": "json_schema", "schema": schema or PROPOSAL_SCHEMA}},
             messages=[{"role": "user", "content": user}],
         )
         if response.stop_reason == "refusal":
             raise RuntimeError("model declined the request")
+        if response.stop_reason == "max_tokens":
+            raise RuntimeError("response was cut off at max_tokens")
         text = next((b.text for b in response.content if b.type == "text"), "")
         usage = {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens,
                  "model": self.model}

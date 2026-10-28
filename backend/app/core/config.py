@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     llm_timeout_seconds: int = 60
 
+    autoresearch_run_timeout_seconds: int = Field(120, ge=10, le=900)
+
     log_level: str = "INFO"
     log_json: bool = True
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

@@ -18,10 +18,11 @@ function nodeLabel(n: GraphNode) {
 }
 
 export default function GraphPage() {
-  const runs = useApi(() => api.get<Page<Run>>("/api/runs", { limit: 30 }), []);
+  const runs = useApi(() => api.get<Page<Run>>("/api/runs", { limit: 30, namespace: "*" }), []);
   const [runId, setRunId] = useState("");
+  const [namespace, setNamespace] = useState("main");
   const [hidden, setHidden] = useState<Set<string>>(new Set(["memory"]));
-  const graph = useApi(() => api.get<GraphResponse>("/api/graph", { run_id: runId || undefined }), [runId]);
+  const graph = useApi(() => api.get<GraphResponse>("/api/graph", { run_id: runId || undefined, namespace }), [runId, namespace]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [edgeInfo, setEdgeInfo] = useState<Record<string, unknown> | null>(null);
   const findingId = selected?.type === "finding" ? selected.id.split(":")[1] : null;
@@ -67,11 +68,17 @@ export default function GraphPage() {
     <div className="space-y-4">
       <Card title="Knowledge graph" actions={
         <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-1 text-ink2">Lab
+            <select value={namespace} onChange={(e) => { setNamespace(e.target.value); setRunId(""); setSelected(null); }}
+              className="rounded border border-line bg-surface px-2 py-1 text-ink">
+              <option value="main">configuration lab</option>
+              <option value="autoresearch">autoresearch</option>
+            </select></label>
           <label className="flex items-center gap-1 text-ink2">Run
             <select value={runId} onChange={(e) => { setRunId(e.target.value); setSelected(null); }}
               className="rounded border border-line bg-surface px-2 py-1 text-ink">
               <option value="">latest</option>
-              {runs.data?.items.map((r) => <option key={r.id} value={r.id}>{r.id} ({r.state})</option>)}
+              {runs.data?.items.filter((r) => r.namespace === namespace).map((r) => <option key={r.id} value={r.id}>{r.id} ({r.state})</option>)}
             </select></label>
           {graph.data && <span className="text-xs text-ink3">{graph.data.stats.nodes} nodes · {graph.data.stats.edges} edges · {graph.data.stats.dangling} dangling (excluded)</span>}
         </div>}>

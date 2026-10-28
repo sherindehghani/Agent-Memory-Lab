@@ -24,6 +24,7 @@ export interface Run {
   end_baseline_experiment_id: string | null;
   stop_reason: string | null;
   error: string | null;
+  initial_configuration?: Record<string, unknown>;
   summary: Record<string, unknown> | null;
   created_at: string;
   finished_at: string | null;

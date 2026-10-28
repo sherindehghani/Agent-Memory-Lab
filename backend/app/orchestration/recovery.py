@@ -10,6 +10,7 @@ from app.agents.evaluator import EvaluatorAgent
 from app.agents.executor import ExecutorAgent
 from app.agents.planner import PlannerAgent
 from app.agents.researcher import ResearcherAgent
+from app.autoresearch.agents import AutoresearcherAgent
 from app.core.config import Settings, get_settings
 from app.core.database import init_engine, run_migrations, session_scope
 from app.experiments.acceptance import SECONDARY_METRICS
@@ -23,7 +24,7 @@ from app.orchestration.state import ACTIVE, RunState, record_event, transition
 
 logger = logging.getLogger(__name__)
 
-AGENT_CLASSES = (PlannerAgent, ExecutorAgent, EvaluatorAgent, ResearcherAgent)
+AGENT_CLASSES = (PlannerAgent, ExecutorAgent, EvaluatorAgent, ResearcherAgent, AutoresearcherAgent)
 
 
 def seed_agents(session: Session) -> None:

@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import utcnow
 
-AGENT_IDS = ("planner_01", "executor_01", "evaluator_01", "researcher_01")
-AgentId = Literal["planner_01", "executor_01", "evaluator_01", "researcher_01"]
+AGENT_IDS = ("planner_01", "executor_01", "evaluator_01", "researcher_01", "autoresearcher_01")
+AgentId = Literal["planner_01", "executor_01", "evaluator_01", "researcher_01", "autoresearcher_01"]
 MessageType = Literal[
     "experiment_proposal", "execution_result", "evaluation_decision", "research_suggestion", "memory_stored",
 ]

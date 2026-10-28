@@ -16,6 +16,7 @@ ones, what was learned, and what is unfinished.
 ## Contents
 
 - [Quick start](#quick-start)
+- [Autoresearch mode](#autoresearch-mode)
 - [Architecture](#architecture)
 - [Technology stack](#technology-stack)
 - [Experiment lifecycle](#experiment-lifecycle)
@@ -83,6 +84,65 @@ up by also halving `n_estimators`: peak memory −26% and model size −55%, but
 baseline. The hypothesis is recorded as *partially supported*, and its memory record becomes `contradicted`.
 The Planner then switches to Logistic Regression, which is accepted (0.984). Many of these differences
 (0.001–0.003 F1) are smaller than the fold spread (~0.01).
+
+---
+
+## Autoresearch mode
+
+Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch): instead of choosing
+hyperparameters, the agent **edits real code** and keeps only what measurably helps.
+
+```bash
+make autoresearch                                   # offline idea bank, 20 experiments, 30 minutes
+make autoresearch ARGS="--proposer llm --experiments 100 --minutes 480 --tag overnight"
+```
+
+Or use the **Autoresearch** page in the dashboard (start/stop, progress chart, `results.tsv`, per-attempt
+diffs and logs, best `train.py`, and a `program.md` editor).
+
+| Piece | Role |
+|---|---|
+| `workspace/autoresearch/train.py` | the **only** file the agent edits; must define `build_model(seed)` returning an estimator |
+| fixed harness (`backend/app/autoresearch/harness.py`) | the agent cannot change it: same data, same stratified 5-fold CV, reports `val_f1` |
+| `workspace/autoresearch/program.md` | your instructions to the agent (edit them in the dashboard) |
+| `workspace/autoresearch/results.tsv` | `commit  val_f1  memory_mb  status  description`, one row per attempt (untracked) |
+| branch `autoresearch/<tag>` | each session works on its own branch in the workspace repo |
+
+The loop (as in autoresearch's `program.md`):
+
+1. Run the unchanged `train.py` to get the session baseline.
+2. The Autoresearcher agent proposes one focused change and the complete new `train.py`.
+3. The change is committed and run by the harness in a subprocess with a time limit (default 120 s).
+4. If `val_f1` improved by more than the threshold, the commit is **kept** and the branch advances.
+   Equal `val_f1` with fewer lines of code is also kept (the simplicity rule).
+5. Otherwise the branch is `git reset --hard` to the last kept commit. The discarded attempt stays reachable
+   under `refs/autoresearch/attempts/<experiment_id>`, so its diff can still be inspected.
+6. On a crash, the LLM proposer sees the error and gets up to `max_fix_attempts` tries to fix it; ideas that
+   still fail are logged as `crash`.
+7. Repeat without asking until the experiment count or time budget runs out, or you press Stop.
+
+**Proposers.** With `LAB_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` set, Claude writes the code. It reads
+`program.md`, the current `train.py`, the results history and retrieved memories, and returns the complete new
+file (structured JSON output). Without a key, an **offline idea bank** applies built-in code edits: model
+swaps, regularisation, class weights, feature selection, interaction features, ensembles, and simplifications.
+It runs out of new ideas after about a dozen experiments, while the LLM proposer does not.
+
+**What memory adds beyond autoresearch.** Every attempt is also an experiment record, an episodic memory, a
+finding and a set of knowledge-graph relationships in the `autoresearch` namespace. So:
+- a **new session starts from the best `train.py` found by earlier sessions**, instead of restarting from
+  `master`;
+- code that was already tried, in this session or an earlier one, is never re-run;
+- the LLM proposer is shown past keeps, discards and crashes.
+
+**Safety.** Running agent-written code goes beyond the original MVP rule ("do not execute agent-generated
+Python"), so it is guarded:
+- before running, an import allowlist is enforced (numpy, scipy, sklearn and a few standard-library modules),
+  with no `sklearn.datasets`, so the agent can't load the labels;
+- `open`/`eval`/`exec`/`getattr`/`print`, dunder access and numpy file I/O are blocked;
+- the harness runs in a separate process with a time limit, an empty temporary working directory, and an
+  environment stripped of secrets, and the score is computed by the harness, not by `train.py`.
+
+This is a guard, **not a security sandbox**: run it only on a machine you control.
 
 ---
 
@@ -377,7 +437,7 @@ events are also persisted in `run_events`.
 ## Testing
 
 ```bash
-make test        # backend: 57 tests (unit, integration, end-to-end), ~2.5 min
+make test        # backend: 77 tests (unit, integration, end-to-end, autoresearch), ~3 min
 make build       # frontend: type-check + production build
 ```
 
@@ -409,7 +469,11 @@ Tests use a temporary SQLite database and a temporary Git workspace per test, an
 - Natural-language search is keyword-based, with no embeddings.
 - Single process, single active run: no multi-user isolation or authentication (local MVP).
 - The memory evaluation uses few seeds and no statistical tests.
-- The frontend bundle is unsplit (~780 kB).
+- The frontend bundle is unsplit (~800 kB).
+- Autoresearch: the code guard is a static allowlist, not a sandbox; the offline idea bank is small; the
+  time limit makes slow-but-better models lose by timeout, and timings differ between machines.
+- If something else (e.g. the Docker container) already listens on port 8000, `localhost` may reach it
+  instead of the local backend; stop one of them.
 
 ## Future improvements
 

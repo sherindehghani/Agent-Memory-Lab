@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import agents, evaluation, experiments, graph, memory, runs
+from app.api import agents, autoresearch, evaluation, experiments, graph, memory, runs
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.core.logging import configure_logging
@@ -83,5 +83,6 @@ def health(request: Request) -> dict[str, Any]:
             "recovered_runs_on_startup": request.app.state.recovered_runs}
 
 
-for router in (runs.router, experiments.router, memory.router, agents.router, graph.router, evaluation.router):
+for router in (runs.router, experiments.router, memory.router, agents.router, graph.router, evaluation.router,
+               autoresearch.router):
     app.include_router(router)
