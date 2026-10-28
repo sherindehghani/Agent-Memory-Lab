@@ -1,7 +1,7 @@
 PY ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 
-.PHONY: install install-backend install-frontend migrate backend frontend test build demo demo-fresh compare clean-local
+.PHONY: install install-backend install-frontend migrate backend frontend test build demo demo-fresh autoresearch compare clean-local
 
 install: install-backend install-frontend
 
@@ -32,6 +32,9 @@ demo:
 
 demo-fresh:
 	$(PY) scripts/demo.py --reset --compare
+
+autoresearch:
+	$(PY) scripts/autoresearch.py $(ARGS)
 
 compare:
 	curl -s -X POST localhost:8000/api/evaluation/compare -H 'Content-Type: application/json' -d '{"seeds":[0,1,2],"budget":6}'

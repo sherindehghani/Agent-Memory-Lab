@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useApi } from "./hooks/useApi";
 import ActivityPage from "./pages/ActivityPage";
+import AutoresearchPage from "./pages/AutoresearchPage";
 import ExperimentsPage from "./pages/ExperimentsPage";
 import GraphPage from "./pages/GraphPage";
 import MemoryPage from "./pages/MemoryPage";
@@ -9,6 +10,7 @@ import { api } from "./services/api";
 
 const NAV = [
   { to: "/", label: "Overview" },
+  { to: "/autoresearch", label: "Autoresearch" },
   { to: "/experiments", label: "Experiments" },
   { to: "/memory", label: "Shared memory" },
   { to: "/graph", label: "Knowledge graph" },
@@ -41,6 +43,7 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-5">
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/autoresearch" element={<AutoresearchPage />} />
           <Route path="/experiments" element={<ExperimentsPage />} />
           <Route path="/experiments/:id" element={<ExperimentsPage />} />
           <Route path="/memory" element={<MemoryPage />} />

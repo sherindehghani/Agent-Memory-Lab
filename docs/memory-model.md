@@ -114,3 +114,13 @@ score = 0.25·text_match + 0.15·model_match + 0.25·config_similarity + 0.25·m
 
 Hard filters run first in SQL. Every result returns its component scores, the reasons, and evidence copied
 from stored measurements. See `backend/app/memory/retrieval.py` for each component's exact definition.
+
+## Autoresearch namespace
+
+Autoresearch sessions write into the `autoresearch` namespace with protocol `autoresearch-cv5`. There, the
+"configuration" is code: the hash of `train.py`. The Git DAG has one branch per session, holding kept commits;
+discarded attempts are kept under `refs/autoresearch/attempts/*`. The baseline pointer always names the best
+kept `train.py`, which the next session branches from. Episodic memories of every attempt (kept, discarded or
+crashed) stop the proposers from re-running code that was already tried, and they give the LLM proposer the
+history of what worked.
+

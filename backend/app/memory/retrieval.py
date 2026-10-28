@@ -305,13 +305,13 @@ class MemoryRetriever:
             "duration_delta_seconds": d("duration_seconds"),
         }
 
-    def tried_configurations(self) -> dict[str, list[str]]:
+    def tried_configurations(self, protocol: str = PROTOCOL_VERSION) -> dict[str, list[str]]:
         t0 = time.perf_counter()
         rows = self.session.execute(
             select(Experiment.config_hash, MemoryRecord.id)
             .join(Experiment, MemoryRecord.source_experiment_id == Experiment.id)
             .where(MemoryRecord.namespace == self.namespace, MemoryRecord.kind == "experiment_outcome",
-                   Experiment.protocol_version == PROTOCOL_VERSION)
+                   Experiment.protocol_version == protocol)
         ).all()
         out: dict[str, list[str]] = {}
         for h, mem_id in rows:
