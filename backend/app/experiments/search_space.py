@@ -1,9 +1,3 @@
-"""Allowed model types, hyperparameter bounds, and bounded neighbour moves.
-
-Agents never edit source code: they propose a ``(model_type, configuration)``
-pair which must validate against these schemas before anything runs.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -49,7 +43,6 @@ CONFIG_SCHEMAS: dict[str, type[_StrictConfig]] = {
     "random_forest": RandomForestConfig,
 }
 
-# Moves expected to shrink the trained model (used for hypotheses only — never as evidence).
 DOWNSIZING_MOVES = {"n_estimators:decrease", "max_depth:decrease", "min_samples_leaf:increase"}
 UPSIZING_MOVES = {"n_estimators:increase", "max_depth:increase", "min_samples_leaf:decrease"}
 
@@ -61,7 +54,6 @@ class ConfigValidationError(ValueError):
 
 
 def validate_configuration(model_type: str, configuration: Any) -> dict[str, Any]:
-    """Return a normalised configuration (defaults filled) or raise ConfigValidationError."""
     if model_type not in CONFIG_SCHEMAS:
         raise ConfigValidationError([f"unsupported model_type {model_type!r}; allowed: {list(MODEL_TYPES)}"])
     if not isinstance(configuration, dict):
@@ -84,7 +76,6 @@ def config_hash(model_type: str, configuration: dict[str, Any]) -> str:
 
 
 def search_space_description() -> dict[str, Any]:
-    """JSON description of the allowed space (stored as procedural memory, sent to the LLM)."""
     return {name: schema.model_json_schema()["properties"] for name, schema in CONFIG_SCHEMAS.items()}
 
 
@@ -98,16 +89,15 @@ def config_diff(old_type: str | None, old: dict[str, Any] | None, new_type: str,
 
 def _direction(old: Any, new: Any) -> str:
     if old is None and isinstance(new, (int, float)):
-        return "decrease"  # max_depth: unlimited -> bounded
+        return "decrease"
     if new is None and isinstance(old, (int, float)):
-        return "increase"  # max_depth: bounded -> unlimited
+        return "increase"
     if isinstance(old, (int, float)) and isinstance(new, (int, float)):
         return "increase" if new > old else "decrease"
     return f"set_{new}"
 
 
 def moves_from_diff(diff: dict[str, Any]) -> list[str]:
-    """Named moves such as ``n_estimators:decrease`` or ``model_type:set_random_forest``."""
     return sorted(f"{param}:{_direction(change['from'], change['to'])}" for param, change in diff.items())
 
 
@@ -131,7 +121,6 @@ def _round_sig(x: float, sig: int = 3) -> float:
 
 
 def neighbours(model_type: str, configuration: dict[str, Any]) -> list[Candidate]:
-    """Bounded one-step moves from a configuration, in a fixed deterministic order."""
     proposals: list[tuple[str, dict[str, Any]]] = []
     c = dict(configuration)
     if model_type == "random_forest":

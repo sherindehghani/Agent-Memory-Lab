@@ -1,12 +1,3 @@
-"""Startup bootstrap and crash recovery.
-
-Recovery policy (MVP): any run left in a non-terminal state by a previous
-process is marked INTERRUPTED and its unfinished experiments are marked
-``interrupted``. Completed records and the accepted baseline are untouched.
-Nothing is re-run automatically; a user may start a new run (or POST
-``/api/runs/{id}/resume``), which continues from the last accepted baseline.
-"""
-
 from __future__ import annotations
 
 import json
@@ -100,7 +91,6 @@ def recover_interrupted_runs(session: Session) -> list[str]:
 
 
 def bootstrap(settings: Settings | None = None) -> list[str]:
-    """Migrate the DB, initialise the Git workspace, seed agents/rules, recover runs."""
     settings = settings or get_settings()
     run_migrations(settings.database_url)
     init_engine(settings.database_url)

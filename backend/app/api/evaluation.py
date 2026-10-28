@@ -24,7 +24,6 @@ def _out(r: EvaluationResult) -> dict[str, Any]:
 @router.post("/compare", status_code=202)
 def compare(body: CompareRequest, db: Session = Depends(get_db),
             manager: RunManager = Depends(get_manager)) -> dict[str, Any]:
-    """Run memory-enabled vs. memory-disabled trials in isolated namespaces (background)."""
     try:
         eval_id = start_comparison(manager, body)
     except ConflictError as exc:

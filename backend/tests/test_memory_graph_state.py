@@ -1,5 +1,3 @@
-"""Unit tests: memory storage/retrieval/ranking, graph construction, messages, state machine."""
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -24,7 +22,7 @@ from app.orchestration.state import InvalidTransition, RunState, transition
 from app.schemas.agents import AgentMessageSchema
 
 
-def make_run(session, namespace: str = "main") -> Run:  # noqa: ANN001
+def make_run(session, namespace: str = "main") -> Run:
     run = Run(id=new_id("run"), namespace=namespace, objective="Improve validation F1 score", state="CREATED",
               seed=0, max_experiments=5, max_duration_seconds=600, max_retries=1,
               initial_model_type="random_forest", initial_configuration={})
@@ -33,7 +31,7 @@ def make_run(session, namespace: str = "main") -> Run:  # noqa: ANN001
     return run
 
 
-def make_experiment(session, run: Run, *, decision: str = "rejected", model_type: str = "random_forest",  # noqa: ANN001
+def make_experiment(session, run: Run, *, decision: str = "rejected", model_type: str = "random_forest",
                     config: dict | None = None, f1_delta: float | None = -0.01, mem_delta: float = -0.1,
                     moves: list[str] | None = None) -> Experiment:
     config = config or {"n_estimators": 100, "max_depth": None, "min_samples_leaf": 1, "max_features": "sqrt"}
@@ -51,7 +49,7 @@ def make_experiment(session, run: Run, *, decision: str = "rejected", model_type
     return exp
 
 
-def outcome_memory(session, exp: Experiment) -> MemoryRecord:  # noqa: ANN001
+def outcome_memory(session, exp: Experiment) -> MemoryRecord:
     return MemoryStore(session, exp.namespace).add_memory(
         category="episodic", kind="experiment_outcome", title=f"{exp.id} {exp.decision}",
         content=f"Experiment {exp.id} {exp.decision} {exp.model_type}", created_by="evaluator_01",
@@ -59,8 +57,7 @@ def outcome_memory(session, exp: Experiment) -> MemoryRecord:  # noqa: ANN001
         source_run_id=exp.run_id, source_experiment_id=exp.id)
 
 
-# -- memory storage -------------------------------------------------------------------
-def test_memory_storage_validates_category_and_status(session) -> None:  # noqa: ANN001
+def test_memory_storage_validates_category_and_status(session) -> None:
     store = MemoryStore(session)
     with pytest.raises(MemoryError_):
         store.add_memory(category="dreams", kind="x", title="t", content="c", created_by="system",
@@ -73,35 +70,34 @@ def test_memory_storage_validates_category_and_status(session) -> None:  # noqa:
     assert m.tags == ["a", "b"] and "reduced" in m.search_text
 
 
-def test_procedural_memory_seeded(session) -> None:  # noqa: ANN001
+def test_procedural_memory_seeded(session) -> None:
     kinds = {m.kind for m in session.query(MemoryRecord).filter_by(category="procedural")}
     assert {"acceptance_rule", "evaluation_protocol", "execution_constraints", "retry_limits",
             "allowed_changes"} <= kinds
 
 
-def test_memory_persists_across_restart(settings) -> None:  # noqa: ANN001
+def test_memory_persists_across_restart(settings) -> None:
     with new_session() as s:
         run = make_run(s)
         mem = outcome_memory(s, make_experiment(s, run))
         s.commit()
         mem_id = mem.id
-    init_engine(settings.database_url)  # simulate a backend restart (new engine/connection pool)
+    init_engine(settings.database_url)
     with new_session() as s:
         assert s.get(MemoryRecord, mem_id) is not None
 
 
-def test_baseline_pointer_rejects_unaccepted(session) -> None:  # noqa: ANN001
+def test_baseline_pointer_rejects_unaccepted(session) -> None:
     run = make_run(session)
     exp = make_experiment(session, run, decision="rejected")
     with pytest.raises(MemoryError_):
         MemoryStore(session).set_baseline(exp, "nope")
 
 
-# -- retrieval ----------------------------------------------------------------------
-def test_retrieval_finds_rejected_memory_reduction_with_evidence(session) -> None:  # noqa: ANN001
+def test_retrieval_finds_rejected_memory_reduction_with_evidence(session) -> None:
     run = make_run(session)
     saver = make_experiment(session, run, decision="rejected", mem_delta=-0.12)
-    make_experiment(session, run, decision="rejected", mem_delta=+0.05)  # used more memory
+    make_experiment(session, run, decision="rejected", mem_delta=+0.05)
     make_experiment(session, run, decision="accepted", f1_delta=0.02, mem_delta=-0.2)
     for e in session.query(Experiment).all():
         outcome_memory(session, e)
@@ -112,7 +108,7 @@ def test_retrieval_finds_rejected_memory_reduction_with_evidence(session) -> Non
     assert r.evidence["decision"] == "rejected" and "peak_memory_mb decreased" in "; ".join(r.reasons)
 
 
-def test_ranking_formula_is_transparent(session) -> None:  # noqa: ANN001
+def test_ranking_formula_is_transparent(session) -> None:
     run = make_run(session)
     near = make_experiment(session, run, config={"n_estimators": 100, "max_depth": None, "min_samples_leaf": 1,
                                                  "max_features": "sqrt"})
@@ -129,7 +125,7 @@ def test_ranking_formula_is_transparent(session) -> None:  # noqa: ANN001
     assert results[0].components["config_similarity"] == 1.0 > results[1].components["config_similarity"]
 
 
-def test_recency_breaks_ties(session) -> None:  # noqa: ANN001
+def test_recency_breaks_ties(session) -> None:
     run = make_run(session)
     old, new = make_experiment(session, run), make_experiment(session, run)
     m_old, m_new = outcome_memory(session, old), outcome_memory(session, new)
@@ -146,13 +142,13 @@ def test_config_similarity() -> None:
     assert 0 < config_similarity("logistic_regression", a, "logistic_regression", {**a, "C": 10.0}) < 1
 
 
-def test_no_relevant_memory_returns_empty(session) -> None:  # noqa: ANN001
+def test_no_relevant_memory_returns_empty(session) -> None:
     retriever = MemoryRetriever(session)
     assert retriever.search(MemoryQuery(decision="rejected", model_type="logistic_regression")) == []
-    assert retriever.stats.count == 1  # the retrieval still counts and is timed
+    assert retriever.stats.count == 1
 
 
-def test_memory_referencing_missing_experiment_is_skipped(session) -> None:  # noqa: ANN001
+def test_memory_referencing_missing_experiment_is_skipped(session) -> None:
     session.execute(text("PRAGMA foreign_keys=OFF"))
     session.add(MemoryRecord(id=new_id("mem"), namespace="main", category="episodic", kind="experiment_outcome",
                              title="orphan", content="orphan", created_by="system", verification_status="verified",
@@ -164,7 +160,7 @@ def test_memory_referencing_missing_experiment_is_skipped(session) -> None:  # n
     assert retriever.skipped[0]["reason"] == "references a missing experiment"
 
 
-def test_hyperparameter_filter_and_bad_parameter(session) -> None:  # noqa: ANN001
+def test_hyperparameter_filter_and_bad_parameter(session) -> None:
     run = make_run(session)
     lr = make_experiment(session, run, model_type="logistic_regression",
                          config={"C": 1.0, "max_iter": 1000, "class_weight": None})
@@ -185,8 +181,7 @@ def test_natural_language_parser() -> None:
     assert parse_natural_query("earlier failures related to F1").status == "failed"
 
 
-# -- knowledge graph ----------------------------------------------------------------
-def test_graph_relationships_require_existing_evidence(session) -> None:  # noqa: ANN001
+def test_graph_relationships_require_existing_evidence(session) -> None:
     run = make_run(session)
     exp = make_experiment(session, run)
     X = f"experiment:{exp.id}"
@@ -201,7 +196,7 @@ def test_graph_relationships_require_existing_evidence(session) -> None:  # noqa
         kg.add_relationship(session, "main", "garbage", "PART_OF", f"run:{run.id}", X)
 
 
-def test_graph_construction_evidence_path_and_dangling(session) -> None:  # noqa: ANN001
+def test_graph_construction_evidence_path_and_dangling(session) -> None:
     run = make_run(session)
     parent = make_experiment(session, run, decision="accepted")
     child = make_experiment(session, run)
@@ -214,7 +209,6 @@ def test_graph_construction_evidence_path_and_dangling(session) -> None:  # noqa
                           (X, "USES", f"config:{child.config_hash}"), (X, "DERIVED_FROM", P),
                           (X, "PRODUCED", f"finding:{finding.id}"), (f"finding:{finding.id}", "SUPPORTED_BY", X)]:
         kg.add_relationship(session, "main", src, rel, tgt, X)
-    # a relationship whose endpoint later disappears is reported as dangling, not drawn
     session.add(GraphRelationship(namespace="main", source_id="experiment:exp_ffffffffffff", relation="PART_OF",
                                   target_id=f"run:{run.id}", evidence_ref="experiment:exp_ffffffffffff"))
     session.flush()
@@ -228,7 +222,6 @@ def test_graph_construction_evidence_path_and_dangling(session) -> None:  # noqa
     assert path["paths"][0][1]["target"] == f"config:{child.config_hash}"
 
 
-# -- messages and state machine -----------------------------------------------------
 def test_agent_message_validation() -> None:
     ok = AgentMessageSchema(sender="planner_01", recipient="executor_01", message_type="experiment_proposal",
                             run_id="run_0123456789ab", experiment_id="exp_0123456789ab", payload={})
@@ -240,7 +233,7 @@ def test_agent_message_validation() -> None:
                                   "payload": {}, **bad})
 
 
-def test_state_transitions(session) -> None:  # noqa: ANN001
+def test_state_transitions(session) -> None:
     run = make_run(session)
     for s in (RunState.PLANNING, RunState.READY, RunState.EXECUTING, RunState.EVALUATING, RunState.STORING_MEMORY,
               RunState.PLANNING, RunState.COMPLETED):
@@ -250,7 +243,7 @@ def test_state_transitions(session) -> None:  # noqa: ANN001
         transition(session, run, RunState.PLANNING)
     run2 = make_run(session)
     with pytest.raises(InvalidTransition):
-        transition(session, run2, RunState.EXECUTING)  # cannot skip planning
+        transition(session, run2, RunState.EXECUTING)
     events = session.execute(text("SELECT count(*) FROM run_events WHERE run_id=:r AND event_type='state_transition'"),
                              {"r": run.id}).scalar()
     assert events == 7

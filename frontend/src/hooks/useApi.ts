@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** Fetch with optional polling. `deps` re-trigger the request. */
 export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[], pollMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +24,6 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[], pollMs?: n
     if (!pollMs) return;
     const id = setInterval(reload, pollMs);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, pollMs]);
 
   return { data, error, loading, reload };

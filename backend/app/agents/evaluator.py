@@ -1,5 +1,3 @@
-"""Evaluator agent: applies the deterministic acceptance rule (never an LLM)."""
-
 from __future__ import annotations
 
 from app.agents.base import Agent, AgentContext
@@ -28,5 +26,5 @@ class EvaluatorAgent(Agent):
         return EvaluatorOutput(
             decision=d.decision, reason=d.reason, primary_delta=d.primary_delta, secondary_deltas=d.secondary_deltas,
             secondary_improvements=d.secondary_improvements, threshold=d.threshold,
-            hypothesis_outcome=outcome, hypothesis_details=details,  # type: ignore[arg-type]
+            hypothesis_outcome=outcome, hypothesis_details=details,
         )

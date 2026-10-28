@@ -22,10 +22,9 @@ LEGEND = {
 @router.get("")
 def get_graph(namespace: str = "main", run_id: str | None = None, limit: int = Query(150, ge=10, le=1000),
               full: bool = False, db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Graph for React Flow. Defaults to the latest run's neighbourhood to limit clutter."""
     graph, dangling = kg.build_graph(db, namespace)
     if not full:
-        if run_id is None:  # latest run that actually produced experiments
+        if run_id is None:
             run_id = db.scalar(select(Experiment.run_id).where(Experiment.namespace == namespace)
                                .order_by(Experiment.created_at.desc()).limit(1))
         if run_id:
@@ -49,7 +48,6 @@ def experiment_graph(experiment_id: str, radius: int = Query(1, ge=1, le=3), db:
 
 @router.get("/findings/{finding_id}/evidence")
 def finding_evidence(finding_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Multi-hop evidence path: Finding -SUPPORTED_BY-> Experiment -USES-> Configuration (+ commit, model)."""
     finding = db.get(Finding, finding_id)
     if finding is None:
         raise not_found("finding", finding_id)

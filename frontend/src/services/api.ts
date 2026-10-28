@@ -1,5 +1,3 @@
-// Thin fetch wrapper. Every value the dashboard shows comes from these calls.
-
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);

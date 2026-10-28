@@ -33,7 +33,6 @@ const DECISION_STYLE: Record<string, { icon: string; cls: string }> = {
   invalid: { icon: "✕", cls: "text-critical border-critical/40" },
 };
 
-/** Decision badge: colour never carries the meaning alone (icon + label). */
 export function DecisionBadge({ decision }: { decision: Decision | string | null }) {
   if (!decision) return <span className="text-xs text-ink3">—</span>;
   const s = DECISION_STYLE[decision] ?? { icon: "•", cls: "text-ink2 border-line" };

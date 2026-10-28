@@ -1,21 +1,3 @@
-"""Evidence-backed memory retrieval with a transparent ranking formula.
-
-Hard filters are applied in SQL (category, kind, decision, status, model type,
-hyperparameter presence, verification) and, if requested, a metric goal
-(e.g. "peak memory decreased vs. its baseline"). Remaining candidates are scored:
-
-    score = 0.25 * text_match          # share of query keywords found in the memory text
-          + 0.15 * model_match         # 1 if the experiment's model type equals the query's
-          + 0.25 * config_similarity   # per-parameter similarity (log-scale for numbers)
-          + 0.25 * metric_relevance    # size of the improvement in the requested direction
-          + 0.10 * recency             # 1 / (1 + age_hours / 24)
-
-Every component lies in [0, 1]; components that do not apply to a query are 0
-for all candidates, so they never change the ordering. Each result carries its
-component breakdown, human-readable reasons, and evidence taken from stored
-measurements only.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -131,7 +113,6 @@ def recency(created_at: datetime | None, now: datetime) -> float:
 
 
 def _metric_delta(exp: Experiment, metric: str) -> tuple[float | None, float | None]:
-    """(absolute delta, relative delta) vs. the experiment's comparison baseline."""
     if metric == "f1":
         return exp.primary_delta, exp.primary_delta
     d = (exp.secondary_deltas or {}).get(metric)
@@ -141,7 +122,6 @@ def _metric_delta(exp: Experiment, metric: str) -> tuple[float | None, float | N
 
 
 def parse_natural_query(text: str, limit: int = 10) -> MemoryQuery:
-    """Rule-based keyword parser for natural-language memory queries (no LLM)."""
     t = text.lower()
     q: dict[str, Any] = {"text": text, "limit": limit}
     if "rejected" in t:
@@ -177,12 +157,11 @@ def parse_natural_query(text: str, limit: int = 10) -> MemoryQuery:
         q["kinds"] = ["experiment_outcome"]
     if any(k in q for k in ("decision", "status", "model_type", "metric_goal", "hyperparameter")) \
             and "categories" not in q:
-        q["kinds"] = ["experiment_outcome"]  # experiment questions -> one result per experiment
+        q["kinds"] = ["experiment_outcome"]
     return MemoryQuery.model_validate(q)
 
 
 class MemoryRetriever:
-    """Read-only memory interface used by agents and the API."""
 
     def __init__(self, session: Session, namespace: str = "main"):
         self.session = session
@@ -198,7 +177,6 @@ class MemoryRetriever:
         log_event(logger, "memory_retrieval", f"retrieval '{label}' returned {len(ids)} records",
                   namespace=self.namespace, latency_ms=round(elapsed, 3))
 
-    # -- general search ---------------------------------------------------
     def search(self, query: MemoryQuery, *, now: datetime | None = None) -> list[RetrievalResult]:
         t0 = time.perf_counter()
         now = now or utcnow()
@@ -221,10 +199,8 @@ class MemoryRetriever:
         if query.hyperparameter:
             if query.hyperparameter not in KNOWN_PARAMS:
                 raise ValueError(f"unknown hyperparameter {query.hyperparameter!r}; known: {KNOWN_PARAMS}")
-            # json_type is NULL only when the key is absent (an explicit null gives 'null').
             stmt = stmt.where(func.json_type(Experiment.configuration, f"$.{query.hyperparameter}").is_not(None))
         tokens = [w for w in tokenize(query.text) if w not in STOPWORDS]
-        # With no structured criteria, a keyword match is required (otherwise text only ranks).
         text_only = bool(tokens) and not any([query.categories, query.kinds, query.decision, query.status,
                                               query.model_type, query.configuration, query.hyperparameter,
                                               query.metric_goal, query.verification_status])
@@ -329,9 +305,7 @@ class MemoryRetriever:
             "duration_delta_seconds": d("duration_seconds"),
         }
 
-    # -- helpers used by the planner / researcher ----------------------------
     def tried_configurations(self) -> dict[str, list[str]]:
-        """config_hash -> memory ids of experiment outcomes already recorded."""
         t0 = time.perf_counter()
         rows = self.session.execute(
             select(Experiment.config_hash, MemoryRecord.id)
@@ -346,7 +320,6 @@ class MemoryRetriever:
         return out
 
     def tested_experiment(self, config_hash: str) -> dict[str, Any] | None:
-        """Most recent recorded outcome for a configuration (used to extend the search from it)."""
         row = self.session.execute(
             select(MemoryRecord.id, Experiment)
             .join(Experiment, MemoryRecord.source_experiment_id == Experiment.id)
@@ -362,7 +335,6 @@ class MemoryRetriever:
                 "configuration": exp.configuration, "f1_delta": exp.primary_delta}
 
     def move_evidence(self) -> dict[str, list[dict[str, Any]]]:
-        """move name -> measured F1 effects of past experiments that made that move."""
         t0 = time.perf_counter()
         rows = self.session.execute(
             select(MemoryRecord.id, Experiment)
@@ -380,7 +352,6 @@ class MemoryRetriever:
         return out
 
     def followed_up_sources(self) -> set[str]:
-        """Experiments that already have a research suggestion derived from them."""
         rows = self.session.scalars(
             select(MemoryRecord.source_experiment_id).where(
                 MemoryRecord.namespace == self.namespace, MemoryRecord.kind == "research_suggestion")
@@ -389,4 +360,3 @@ class MemoryRetriever:
 
     def get(self, memory_id: str) -> MemoryRecord | None:
         return self.session.get(MemoryRecord, memory_id)
-

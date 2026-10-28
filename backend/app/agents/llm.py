@@ -1,11 +1,3 @@
-"""Optional LLM-backed planning (``LAB_LLM_PROVIDER=anthropic``).
-
-The LLM only *proposes* a structured configuration. The proposal is validated
-against the search space; anything invalid, refused or erroring falls back to
-the deterministic policy (see PlannerAgent). The LLM has no tools, no shell and
-no file access, and never makes acceptance decisions.
-"""
-
 from __future__ import annotations
 
 import json
@@ -21,7 +13,6 @@ if TYPE_CHECKING:
     from app.agents.base import AgentContext
     from app.schemas.agents import PlannerInput
 
-# USD per million tokens (input, output); used only for the reported cost estimate.
 PRICING = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-5-5": (0.10, 0.50)}
 
 PROPOSAL_SCHEMA = {
@@ -52,7 +43,7 @@ class LLMClient:
     timeout: float
 
     def complete_json(self, system: str, user: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        import anthropic  # optional dependency (requirements-llm.txt)
+        import anthropic
 
         client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout, max_retries=2)
         response = client.messages.create(
@@ -100,7 +91,7 @@ def llm_plan(ctx: AgentContext, inp: PlannerInput) -> PlannerOutput:
     data, usage = ctx.llm.complete_json(SYSTEM_PROMPT, user)
     configuration = validate_configuration(data["model_type"], json.loads(data["configuration_json"]))
     known = {m["memory_id"] for m in memories}
-    cited = [m for m in data.get("referenced_memory_ids", []) if m in known]  # drop invented ids
+    cited = [m for m in data.get("referenced_memory_ids", []) if m in known]
     tried = ctx.retriever.tried_configurations() if inp.memory_enabled else {}
     note = " (configuration was already tested)" if config_hash(data["model_type"], configuration) in tried else ""
     return PlannerOutput(

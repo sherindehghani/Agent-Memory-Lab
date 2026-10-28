@@ -17,7 +17,6 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 @router.post("", status_code=201, response_model=RunOut)
 def create_run(body: RunCreate, db: Session = Depends(get_db), manager: RunManager = Depends(get_manager)) -> Run:
-    """Create a run and start it in the background. Returns 409 if another run is active."""
     try:
         run_id = manager.launch(body)
     except ConflictError as exc:
@@ -37,7 +36,6 @@ def list_runs(namespace: str = "main", state: str | None = None, limit: int = Qu
 
 @router.get("/{run_id}")
 def get_run(run_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Run record, its lifecycle events and its experiments."""
     run = db.get(Run, run_id)
     if run is None:
         raise not_found("run", run_id)
@@ -65,7 +63,6 @@ def run_messages(run_id: str, limit: int = Query(200, ge=1, le=1000), db: Sessio
 
 @router.post("/{run_id}/stop", status_code=202, response_model=RunOut)
 def stop_run(run_id: str, manager: RunManager = Depends(get_manager)) -> Run:
-    """Request a graceful stop; a running experiment is terminated (subprocess mode)."""
     try:
         return manager.request_stop(run_id)
     except NotFoundError:
@@ -76,7 +73,6 @@ def stop_run(run_id: str, manager: RunManager = Depends(get_manager)) -> Run:
 
 @router.post("/{run_id}/resume", status_code=201, response_model=RunOut)
 def resume_run(run_id: str, db: Session = Depends(get_db), manager: RunManager = Depends(get_manager)) -> Run:
-    """Start a new run that continues from the last accepted baseline (no automatic re-runs)."""
     try:
         new_id = manager.resume(run_id)
     except NotFoundError:

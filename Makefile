@@ -30,13 +30,11 @@ build:
 demo:
 	$(PY) scripts/demo.py
 
-# Deletes data/lab.db and workspace/ before running the demo.
 demo-fresh:
 	$(PY) scripts/demo.py --reset --compare
 
 compare:
 	curl -s -X POST localhost:8000/api/evaluation/compare -H 'Content-Type: application/json' -d '{"seeds":[0,1,2],"budget":6}'
 
-# Deletes local state (database + experiment workspace).
 clean-local:
 	rm -rf data workspace

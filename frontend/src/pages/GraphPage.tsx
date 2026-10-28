@@ -7,7 +7,6 @@ import { useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 import type { GraphNode, GraphResponse, Page, Run } from "../types";
 
-// Column layout by node type; experiments sit in the middle ordered by sequence.
 const COLUMNS = ["agent", "memory", "experiment", "finding", "config", "model", "commit", "run"];
 const TYPE_ACCENT: Record<string, string> = {
   experiment: "var(--series-1)", finding: "var(--series-2)", memory: "#1baf7a",

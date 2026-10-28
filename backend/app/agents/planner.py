@@ -1,20 +1,3 @@
-"""Planner agent: proposes the next bounded configuration change.
-
-Deterministic policies (documented in docs/memory-model.md):
-
-* **Memory disabled** — choose uniformly (seeded RNG) among the bounded
-  one-step neighbours of the accepted baseline. No earlier experiments are read,
-  so configurations may be repeated.
-* **Memory enabled** — (1) if the Researcher supplied an untested suggestion,
-  use it; otherwise (2) drop neighbours whose exact configuration already has a
-  recorded outcome, (3) score each remaining neighbour by the mean measured F1
-  delta of past experiments that made the same move (0 when unexplored), and
-  (4) pick the highest score, breaking ties with the seeded RNG. (5) If every
-  one-step neighbour is already tested, extend one more step from the tested
-  neighbours (depth 2, best measured F1 first), deriving from that experiment.
-  Every memory that changed the choice is cited in ``referenced_memory_ids``.
-"""
-
 from __future__ import annotations
 
 from statistics import mean
@@ -85,7 +68,6 @@ class PlannerAgent(Agent):
         out.reasoning_summary = fallback_note + out.reasoning_summary
         return out
 
-    # -- memory disabled ----------------------------------------------------
     def _memoryless_policy(self, ctx: AgentContext, inp: PlannerInput) -> PlannerOutput:
         base = inp.baseline
         assert base is not None
@@ -101,7 +83,6 @@ class PlannerAgent(Agent):
             plan_source="policy",
         )
 
-    # -- memory enabled -----------------------------------------------------
     def _memory_policy(self, ctx: AgentContext, inp: PlannerInput) -> PlannerOutput:
         base = inp.baseline
         assert base is not None
@@ -174,7 +155,6 @@ class PlannerAgent(Agent):
     def _second_step(ctx: AgentContext, first: list[Candidate], tried: dict[str, list[str]],
                      evidence: dict[str, list[dict[str, Any]]]
                      ) -> tuple[list[tuple[float, Candidate, list[dict[str, Any]]]], str | None, str | None]:
-        """Untested neighbours of the best tested one-step neighbour (by measured F1 delta)."""
         tested = [t for c in first if (t := ctx.retriever.tested_experiment(c.config_hash))]
         tested.sort(key=lambda t: -(t["f1_delta"] if t["f1_delta"] is not None else -1.0))
         for t in tested:

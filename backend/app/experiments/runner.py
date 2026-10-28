@@ -1,12 +1,3 @@
-"""Train and evaluate one validated configuration, measuring time and memory.
-
-Measurement notes (also in the README): ``duration_seconds`` and
-``process_rss_mb`` vary between machines and runs. ``peak_memory_mb`` is the
-``tracemalloc`` peak of Python/NumPy allocations during fit + predict and is far
-more stable, so it is the memory metric used for comparisons. ``model_size_kb``
-is the pickled model size and is deterministic for a given configuration.
-"""
-
 from __future__ import annotations
 
 import multiprocessing as mp
@@ -30,17 +21,16 @@ from app.experiments.datasets import load_splits
 from app.experiments.metrics import classification_metrics
 from app.experiments.search_space import validate_configuration
 
-PROTOCOL_VERSION = "eval-v2-cv5"  # stratified 5-fold CV on train+validation, mean binary F1
+PROTOCOL_VERSION = "eval-v2-cv5"
 CV_FOLDS = 5
 MB = 1024 * 1024
 
 
-def build_model(model_type: str, configuration: dict[str, Any], seed: int):  # noqa: ANN201
+def build_model(model_type: str, configuration: dict[str, Any], seed: int):
     cfg = validate_configuration(model_type, configuration)
     if model_type == "logistic_regression":
         return make_pipeline(StandardScaler(), LogisticRegression(solver="lbfgs", random_state=seed, **cfg))
     if model_type == "random_forest":
-        # n_jobs=1 keeps results and memory measurements deterministic.
         return RandomForestClassifier(random_state=seed, n_jobs=1, **cfg)
     raise ValueError(f"unsupported model_type {model_type!r}")
 
@@ -48,8 +38,6 @@ def build_model(model_type: str, configuration: dict[str, Any], seed: int):  # n
 def train_and_evaluate(
     model_type: str, configuration: dict[str, Any], seed: int, split: Literal["validation", "test"] = "validation"
 ) -> dict[str, float]:
-    """``validation``: stratified k-fold CV on train+validation (scores are fold means, plus ``f1_std``).
-    ``test``: fit on train+validation, score once on the held-out test split."""
     data = load_splits(seed)
     X_dev = np.concatenate([data.X_train, data.X_val])
     y_dev = np.concatenate([data.y_train, data.y_val])
@@ -84,7 +72,7 @@ def train_and_evaluate(
         metrics["f1_std"] = float(np.std([f["f1"] for f in fold_scores]))
     metrics.update(
         duration_seconds=round(duration, 4),
-        peak_memory_mb=round(max(0, peak - baseline_traced) / MB, 4),  # peak of a single fit (folds run sequentially)
+        peak_memory_mb=round(max(0, peak - baseline_traced) / MB, 4),
         process_rss_mb=round(psutil.Process().memory_info().rss / MB, 2),
         model_size_kb=round(len(pickle.dumps(model)) / 1024, 2),
     )
@@ -102,8 +90,8 @@ class ExecutionOutcome:
 
 def _child(result_queue: Any, model_type: str, configuration: dict[str, Any], seed: int, split: str) -> None:
     try:
-        result_queue.put(("ok", train_and_evaluate(model_type, configuration, seed, split)))  # type: ignore[arg-type]
-    except BaseException as exc:  # report every failure to the parent
+        result_queue.put(("ok", train_and_evaluate(model_type, configuration, seed, split)))
+    except BaseException as exc:
         result_queue.put(("error", f"{type(exc).__name__}: {exc}"))
 
 
@@ -117,8 +105,6 @@ def execute(
     mode: Literal["subprocess", "inprocess"] = "subprocess",
     should_stop: Callable[[], bool] = lambda: False,
 ) -> ExecutionOutcome:
-    """Run one experiment. ``subprocess`` mode enforces the timeout and stop requests
-    by terminating the worker; ``inprocess`` mode can only flag an overrun afterwards."""
     t0 = time.monotonic()
     if mode == "inprocess":
         try:

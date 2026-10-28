@@ -1,8 +1,3 @@
-"""Test fixtures: every test gets a temporary SQLite DB and Git workspace.
-
-Nothing touches the developer's database or repository.
-"""
-
 from __future__ import annotations
 
 import time
@@ -36,7 +31,7 @@ def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settin
 
 
 @pytest.fixture
-def session(settings: Settings):  # noqa: ANN201
+def session(settings: Settings):
     s = new_session()
     yield s
     s.close()
@@ -55,7 +50,6 @@ def wait_for_run(client: TestClient, run_id: str, timeout: float = 120) -> dict:
     while time.time() < deadline:
         body = client.get(f"/api/runs/{run_id}").json()
         if body["run"]["state"] in ("COMPLETED", "FAILED", "CANCELLED", "INTERRUPTED"):
-            # the worker releases the lock right after committing the terminal state
             for _ in range(50):
                 if not client.get("/api/health").json()["busy"]:
                     break

@@ -1,5 +1,3 @@
-"""SQLAlchemy engine/session management and Alembic migration entry point."""
-
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -26,7 +24,6 @@ def _ensure_sqlite_dir(url: str) -> None:
 
 
 def init_engine(url: str | None = None) -> Engine:
-    """(Re)create the global engine. Called at startup and by tests."""
     global _engine, _session_factory
     url = url or get_settings().database_url
     _ensure_sqlite_dir(url)
@@ -35,7 +32,7 @@ def init_engine(url: str | None = None) -> Engine:
     engine = create_engine(url, connect_args={"check_same_thread": False, "timeout": 30})
 
     @event.listens_for(engine, "connect")
-    def _sqlite_pragmas(dbapi_conn, _record):  # noqa: ANN001
+    def _sqlite_pragmas(dbapi_conn, _record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.execute("PRAGMA journal_mode=WAL")
@@ -71,7 +68,6 @@ def session_scope() -> Iterator[Session]:
 
 
 def get_db() -> Iterator[Session]:
-    """FastAPI dependency."""
     session = new_session()
     try:
         yield session
@@ -80,7 +76,6 @@ def get_db() -> Iterator[Session]:
 
 
 def run_migrations(url: str | None = None) -> None:
-    """Apply Alembic migrations up to head (never ``create_all``)."""
     from alembic import command
     from alembic.config import Config
 

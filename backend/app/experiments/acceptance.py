@@ -1,13 +1,3 @@
-"""Deterministic acceptance rules and hypothesis checking.
-
-Rule (procedural memory ``acceptance_rule``):
-  * the candidate must have completed and produced valid metrics;
-  * with no accepted baseline yet, a valid candidate becomes the initial baseline;
-  * otherwise it is accepted iff ``f1_candidate - f1_baseline > threshold``.
-Ties and sub-threshold gains are rejected. Lower resource usage is recorded as a
-*secondary improvement* so rejected experiments stay useful and searchable.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -18,11 +8,10 @@ from app.experiments.metrics import validate_metrics
 PRIMARY_METRIC = "f1"
 EPS = 1e-12
 
-# metric -> (better direction, minimum relative change counted as a secondary improvement)
 SECONDARY_METRICS: dict[str, tuple[str, float]] = {
     "peak_memory_mb": ("lower", 0.05),
     "model_size_kb": ("lower", 0.05),
-    "duration_seconds": ("lower", 0.25),  # timing is noisy, so a larger margin is required
+    "duration_seconds": ("lower", 0.25),
     "accuracy": ("higher", 0.0),
     "precision": ("higher", 0.0),
     "recall": ("higher", 0.0),
@@ -32,7 +21,7 @@ RESOURCE_IMPROVEMENT_METRICS = ("peak_memory_mb", "model_size_kb", "duration_sec
 
 @dataclass
 class Decision:
-    decision: str  # accepted | rejected | invalid
+    decision: str
     reason: str
     primary_delta: float | None
     secondary_deltas: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -95,10 +84,6 @@ def decide(
 def check_hypothesis(
     expected_effects: list[dict[str, Any]], candidate: dict[str, float] | None, baseline: dict[str, float] | None
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Compare each expected effect with the measured change vs. the baseline.
-
-    Directions: ``increase``, ``decrease`` (strict) and ``no_worse`` (for F1: >=).
-    """
     if not expected_effects:
         return "not_evaluated", []
     if candidate is None or baseline is None:
@@ -115,7 +100,7 @@ def check_hypothesis(
             met = delta > EPS
         elif direction == "decrease":
             met = delta < -EPS
-        else:  # no_worse
+        else:
             met = delta <= EPS if lower_is_better else delta >= -EPS
         details.append({**effect, "met": met, "delta": round(delta, 6)})
     met_count = sum(1 for d in details if d.get("met"))

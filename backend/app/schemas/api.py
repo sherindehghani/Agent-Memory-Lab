@@ -1,5 +1,3 @@
-"""API request/response schemas."""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -144,7 +142,6 @@ class MemoryOut(BaseModel):
 
 
 class MemorySearchRequest(BaseModel):
-    """Either a natural-language ``query`` (rule-based parsing) or structured filters."""
 
     model_config = ConfigDict(extra="forbid")
 

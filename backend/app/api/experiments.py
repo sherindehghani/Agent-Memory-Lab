@@ -43,7 +43,6 @@ def list_experiments(namespace: str = "main", run_id: str | None = None, status:
 @router.get("/experiments/{experiment_id}")
 def get_experiment(experiment_id: str, db: Session = Depends(get_db),
                    manager: RunManager = Depends(get_manager)) -> dict[str, Any]:
-    """Experiment with its baseline comparison, hypothesis check, evidence and Git commit."""
     exp = db.get(Experiment, experiment_id)
     if exp is None:
         raise not_found("experiment", experiment_id)
@@ -66,7 +65,6 @@ def get_experiment(experiment_id: str, db: Session = Depends(get_db),
 @router.get("/experiments/{experiment_id}/history")
 def experiment_history(experiment_id: str, db: Session = Depends(get_db),
                        manager: RunManager = Depends(get_manager)) -> dict[str, Any]:
-    """Derivation lineage (DB), Git history of the config commit, and lifecycle events."""
     exp = db.get(Experiment, experiment_id)
     if exp is None:
         raise not_found("experiment", experiment_id)
@@ -102,7 +100,6 @@ def experiment_metrics(experiment_id: str, db: Session = Depends(get_db)) -> lis
 
 @router.get("/overview", tags=["overview"])
 def overview(namespace: str = "main", db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Dashboard totals and the validation-F1 series, all computed from stored records."""
     def count(model: Any, *where: Any) -> int:
         return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
 

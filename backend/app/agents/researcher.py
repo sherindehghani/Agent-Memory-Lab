@@ -1,16 +1,3 @@
-"""Researcher agent: mines rejected experiments for useful secondary findings.
-
-Policy: find verified ``secondary_improvement`` findings from rejected
-experiments (ranked by memory reduction) that have not been followed up yet.
-For the best one, keep the change that saved resources and add one more
-bounded move that does not touch the same parameter, preferring moves whose
-past F1 effect was non-negative and that are not expected to grow the model.
-The output is a *hypothesis* (stored as unverified semantic memory), not a result.
-
-Limits: only memory or model-size savings count (timing is too noisy); only rejected experiments that lost at most ``MAX_F1_LOSS`` validation
-F1 qualify, and research follow-ups are never followed up again (no chains).
-"""
-
 from __future__ import annotations
 
 from statistics import mean
@@ -60,12 +47,12 @@ class ResearcherAgent(Agent):
             if not source_id or source_id in followed or not isinstance(ev.get("configuration"), dict):
                 continue
             if res.memory.evidence.get("plan_source") == "research_suggestion":
-                continue  # no chains of follow-ups
+                continue
             if ev.get("f1_delta") is None or ev["f1_delta"] < -MAX_F1_LOSS:
                 continue
             source_diff = res.memory.evidence.get("config_diff", {})
             if "model_type" in source_diff:
-                continue  # a model switch is not a "keep this change" refinement
+                continue
             touched = set(source_diff)
             options = []
             for idx, cand in enumerate(neighbours(ev["model_type"], ev["configuration"])):
@@ -81,7 +68,6 @@ class ResearcherAgent(Agent):
             *_, cand, deltas = options[0]
             kept = ", ".join(f"{p}={_fmt(c['to'])}" for p, c in source_diff.items()) or "its configuration"
             added = ", ".join(f"{p} {_fmt(c['from'])}→{_fmt(c['to'])}" for p, c in cand.diff.items())
-            # Timing is too noisy to steer research; only memory / model-size savings qualify.
             improvements = [i for i in res.memory.evidence.get("improvements") or []
                             if i.get("metric") in ("peak_memory_mb", "model_size_kb")]
             best = min(improvements, key=lambda i: i.get("relative", 0), default=None)

@@ -1,11 +1,3 @@
-"""Shared memory store: the only write path for memory records, findings,
-experiment metrics and the accepted-baseline pointer.
-
-Agents receive a :class:`MemoryStore` (writes) and a
-:class:`~app.memory.retrieval.MemoryRetriever` (reads); neither exposes
-SQLAlchemy to agent code.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -31,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 CATEGORIES = ("episodic", "semantic", "procedural")
 VERIFICATION_STATES = ("verified", "unverified", "contradicted")
-GLOBAL_NAMESPACE = "global"  # procedural rules shared by every namespace
+GLOBAL_NAMESPACE = "global"
 
 _TOKEN = re.compile(r"[a-z0-9_]+")
 
@@ -49,7 +41,6 @@ class MemoryStore:
         self.session = session
         self.namespace = namespace
 
-    # -- memory records -------------------------------------------------
     def add_memory(
         self,
         *,
@@ -121,7 +112,6 @@ class MemoryStore:
             existing.updated_at = utcnow()
         return existing
 
-    # -- findings -------------------------------------------------------
     def add_finding(self, *, run_id: str, experiment_id: str, finding_type: str, statement: str,
                     evidence: dict[str, Any], created_by: str, verification_status: str = "verified") -> Finding:
         if verification_status not in VERIFICATION_STATES:
@@ -135,7 +125,6 @@ class MemoryStore:
         self.session.flush()
         return finding
 
-    # -- experiment measurements -----------------------------------------
     def save_metrics(self, experiment_id: str, metrics: dict[str, float], split: str = "validation") -> None:
         for name, value in metrics.items():
             self.session.add(ExperimentMetric(experiment_id=experiment_id, split=split, name=name,
@@ -149,13 +138,11 @@ class MemoryStore:
         )
         return {r.name: r.value for r in rows}
 
-    # -- accepted baseline ----------------------------------------------
     def get_baseline(self) -> Experiment | None:
         pointer = self.session.get(BaselinePointer, self.namespace)
         return self.session.get(Experiment, pointer.experiment_id) if pointer else None
 
     def set_baseline(self, experiment: Experiment, reason: str) -> None:
-        """Only a completed, accepted experiment with metrics may become the baseline."""
         if experiment.status != "completed" or experiment.decision != "accepted":
             raise MemoryError_(f"experiment {experiment.id} is not a completed accepted experiment")
         if not self.metrics_of(experiment.id):

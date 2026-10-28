@@ -1,5 +1,3 @@
-// Types mirror the FastAPI response models (backend/app/schemas/api.py).
-
 export type Decision = "accepted" | "rejected" | "invalid" | null;
 
 export interface Page<T> {

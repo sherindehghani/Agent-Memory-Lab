@@ -1,5 +1,3 @@
-"""Structured agent inputs/outputs and inter-agent messages."""
-
 from __future__ import annotations
 
 from datetime import datetime
