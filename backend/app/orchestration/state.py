@@ -1,5 +1,3 @@
-"""Run state machine. Every transition is validated and persisted as a RunEvent."""
-
 from __future__ import annotations
 
 import logging
@@ -33,7 +31,7 @@ _ABORT = {RunState.FAILED, RunState.CANCELLED, RunState.INTERRUPTED}
 
 TRANSITIONS: dict[RunState, set[RunState]] = {
     RunState.CREATED: {RunState.PLANNING} | _ABORT,
-    RunState.PLANNING: {RunState.READY, RunState.COMPLETED} | _ABORT,  # COMPLETED: budget/search exhausted
+    RunState.PLANNING: {RunState.READY, RunState.COMPLETED} | _ABORT,
     RunState.READY: {RunState.EXECUTING} | _ABORT,
     RunState.EXECUTING: {RunState.EVALUATING} | _ABORT,
     RunState.EVALUATING: {RunState.STORING_MEMORY} | _ABORT,

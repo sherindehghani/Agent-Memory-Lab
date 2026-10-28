@@ -1,14 +1,3 @@
-"""Knowledge graph built with NetworkX from persisted ``graph_relationships`` rows.
-
-The database is the source of truth: every relationship is validated on insert
-(both endpoints and the evidence reference must resolve to real records), and
-the in-memory graph is rebuilt from the database on demand. Relationships whose
-endpoints no longer resolve are reported as *dangling* and left out.
-
-Node ids are ``<type>:<key>``, e.g. ``experiment:exp_1a2b3c4d5e6f``,
-``config:<config_hash>``, ``commit:<sha>``, ``model:random_forest``.
-"""
-
 from __future__ import annotations
 
 from collections import deque
@@ -61,7 +50,6 @@ def node_exists(session: Session, node_id: str) -> bool:
 
 def add_relationship(session: Session, namespace: str, source: str, relation: str, target: str,
                      evidence_ref: str) -> GraphRelationship:
-    """Insert a validated relationship (idempotent)."""
     if relation not in RELATIONS:
         raise GraphEvidenceError(f"unknown relation {relation!r}")
     for ref, label in ((source, "source"), (target, "target"), (evidence_ref, "evidence")):
@@ -81,9 +69,6 @@ def add_relationship(session: Session, namespace: str, source: str, relation: st
     return rel
 
 
-# ---------------------------------------------------------------------------
-# Building the graph
-# ---------------------------------------------------------------------------
 def _node_attributes(session: Session, node_ids: set[str]) -> dict[str, dict[str, Any]]:
     by_type: dict[str, set[str]] = {}
     for nid in node_ids:
@@ -162,9 +147,6 @@ def build_graph(session: Session, namespace: str = "main") -> tuple[nx.MultiDiGr
     return graph, dangling
 
 
-# ---------------------------------------------------------------------------
-# Queries
-# ---------------------------------------------------------------------------
 def _in_edges(graph: nx.MultiDiGraph, node: str, relation: str) -> list[str]:
     return [u for u, _, k in graph.in_edges(node, keys=True) if k == relation] if node in graph else []
 
@@ -179,7 +161,6 @@ def experiments_in_run(graph: nx.MultiDiGraph, run_id: str) -> list[str]:
 
 
 def derived_from(graph: nx.MultiDiGraph, experiment_id: str) -> list[str]:
-    """All experiments transitively derived from the given experiment (child -DERIVED_FROM-> parent)."""
     start = f"experiment:{experiment_id}"
     seen, queue, out = {start}, deque([start]), []
     while queue:
@@ -207,7 +188,6 @@ def influences(graph: nx.MultiDiGraph, experiment_id: str) -> list[dict[str, Any
 
 
 def evidence_path(graph: nx.MultiDiGraph, finding_id: str) -> dict[str, Any]:
-    """Finding -SUPPORTED_BY-> Experiment -USES-> Configuration (+ commit, model, baseline)."""
     start = f"finding:{finding_id}"
     if start not in graph:
         return {"finding": start, "found": False, "paths": [], "nodes": {}}

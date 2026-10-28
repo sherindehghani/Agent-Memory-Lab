@@ -1,5 +1,3 @@
-"""Unit tests: configuration validation, metrics, acceptance logic, runner, versioning."""
-
 from __future__ import annotations
 
 import math
@@ -24,20 +22,19 @@ GOOD = {"accuracy": 0.95, "f1": 0.95, "precision": 0.95, "recall": 0.95, "durati
         "peak_memory_mb": 1.0, "model_size_kb": 100.0}
 
 
-# -- configuration validation ------------------------------------------------
 def test_valid_configuration_fills_defaults() -> None:
     cfg = validate_configuration("random_forest", {"n_estimators": 50})
     assert cfg == {"n_estimators": 50, "max_depth": None, "min_samples_leaf": 1, "max_features": "sqrt"}
 
 
 @pytest.mark.parametrize("model_type,cfg", [
-    ("random_forest", {"n_estimators": 5000}),          # out of bounds
-    ("random_forest", {"n_estimators": "many"}),        # wrong type
-    ("random_forest", {"n_estimators": True}),          # bool is not a hyperparameter
-    ("random_forest", {"criterion": "gini"}),           # parameter not in the allowed space
+    ("random_forest", {"n_estimators": 5000}),
+    ("random_forest", {"n_estimators": "many"}),
+    ("random_forest", {"n_estimators": True}),
+    ("random_forest", {"criterion": "gini"}),
     ("logistic_regression", {"C": -1.0}),
     ("logistic_regression", {"C": float("nan")}),
-    ("svm", {}),                                        # unsupported model
+    ("svm", {}),
 ])
 def test_invalid_configuration_rejected(model_type: str, cfg: dict) -> None:
     with pytest.raises(ConfigValidationError):
@@ -73,7 +70,6 @@ def test_dataset_split_is_fixed_and_read_only() -> None:
         a.X_val[0, 0] = 1.0
 
 
-# -- metrics ------------------------------------------------------------------
 def test_metric_calculation() -> None:
     m = classification_metrics(np.array([1, 1, 0, 0]), np.array([1, 0, 0, 0]))
     assert m["accuracy"] == 0.75 and m["precision"] == 1.0 and m["recall"] == 0.5
@@ -89,7 +85,6 @@ def test_invalid_metrics_detected() -> None:
     assert validate_metrics("not a dict")
 
 
-# -- acceptance ---------------------------------------------------------------
 def test_initial_baseline_accepted() -> None:
     assert decide("completed", GOOD, None, 0.001).decision == "accepted"
 
@@ -133,17 +128,16 @@ def test_hypothesis_check() -> None:
     assert check_hypothesis(effects, None, GOOD)[0] == "not_evaluated"
 
 
-# -- runner ---------------------------------------------------------------------
 def test_real_experiment_runs_and_is_reproducible() -> None:
     cfg = default_configuration("logistic_regression")
     a = runner.execute("logistic_regression", cfg, 42, mode="inprocess")
     b = runner.execute("logistic_regression", cfg, 42, mode="inprocess")
     assert a.status == "completed" and validate_metrics(a.metrics) == []
-    assert a.metrics["f1"] == b.metrics["f1"]  # scores are deterministic; time/memory may vary
+    assert a.metrics["f1"] == b.metrics["f1"]
 
 
 def test_training_crash_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*_a, **_k):  # noqa: ANN002, ANN003
+    def boom(*_a, **_k):
         raise RuntimeError("simulated training crash")
 
     monkeypatch.setattr(runner, "build_model", boom)
@@ -163,11 +157,10 @@ def test_subprocess_execution_completes() -> None:
     assert out.status == "completed" and 0 < out.metrics["f1"] <= 1
 
 
-# -- git versioning -----------------------------------------------------------------
-def test_git_commits_form_experiment_dag(tmp_path) -> None:  # noqa: ANN001
+def test_git_commits_form_experiment_dag(tmp_path) -> None:
     ws = GitWorkspace(tmp_path / "ws")
     root = ws.init()
-    assert ws.init() == root  # idempotent
+    assert ws.init() == root
     a = ws.commit_experiment("exp_aaaaaaaaaaaa", {"configuration": {"C": 1.0}}, None, "a")
     b = ws.commit_experiment("exp_bbbbbbbbbbbb", {"configuration": {"C": 3.16}}, a, "b")
     assert ws.history(b)[1]["commit"] == a and ws.history(a)[1]["commit"] == root
@@ -176,7 +169,7 @@ def test_git_commits_form_experiment_dag(tmp_path) -> None:  # noqa: ANN001
     assert (tmp_path / "ws" / "artifacts" / "exp_bbbbbbbbbbbb" / "config.json").exists()
 
 
-def test_git_handles_missing_commits_and_unsafe_input(tmp_path) -> None:  # noqa: ANN001
+def test_git_handles_missing_commits_and_unsafe_input(tmp_path) -> None:
     ws = GitWorkspace(tmp_path / "ws")
     ws.init()
     assert not ws.commit_exists("deadbeef" * 5)

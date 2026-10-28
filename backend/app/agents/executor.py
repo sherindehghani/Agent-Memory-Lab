@@ -1,8 +1,3 @@
-"""Executor agent: validates, versions (Git) and runs one experiment.
-
-It reports only measured metrics; it cannot modify the dataset or the rules.
-"""
-
 from __future__ import annotations
 
 from app.agents.base import Agent, AgentContext
@@ -29,7 +24,7 @@ class ExecutorAgent(Agent):
         try:
             commit = ctx.workspace.commit_experiment(inp.experiment_id, inp.artifact, inp.parent_commit,
                                                      inp.commit_message)
-        except GitError as exc:  # versioning failure is recorded; the experiment can still run
+        except GitError as exc:
             git_error = str(exc)
 
         attempts, total_wall = 0, 0.0
@@ -37,7 +32,7 @@ class ExecutorAgent(Agent):
         for attempt in range(1, inp.max_retries + 2):
             attempts = attempt
             outcome = runner.execute(inp.model_type, configuration, inp.seed, timeout=inp.timeout_seconds,
-                                     mode=ctx.execution_mode, should_stop=ctx.should_stop)  # type: ignore[arg-type]
+                                     mode=ctx.execution_mode, should_stop=ctx.should_stop)
             total_wall += outcome.wall_seconds
             if outcome.status in ("completed", "cancelled") or ctx.should_stop():
                 break

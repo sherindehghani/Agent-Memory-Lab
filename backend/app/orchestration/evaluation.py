@@ -1,12 +1,3 @@
-"""Memory evaluation: memory-enabled vs. memory-disabled planning.
-
-For each seed, both conditions start from an empty, isolated namespace with the
-same dataset, initial configuration, search space, budget and acceptance rule.
-Namespaces guarantee one condition never sees the other's records. This is a
-small demonstration, not a statistically conclusive study; results are
-reported as measured, including when memory does worse.
-"""
-
 from __future__ import annotations
 
 import logging

@@ -1,15 +1,4 @@
 #!/usr/bin/env python
-"""Reproducible end-to-end demo of the AI Agent Memory Lab (real measurements only).
-
-    python scripts/demo.py            # continue in the configured lab database
-    python scripts/demo.py --reset    # wipe data/lab.db and workspace/ first (fresh demo)
-    python scripts/demo.py --compare  # also run the memory on/off comparison
-
-Steps: initialise DB + Git workspace -> initial baseline -> candidate experiments
--> accept/reject -> store memories -> find a rejected experiment with a useful
-secondary result (if one exists) -> Researcher hypothesis -> follow-up
-experiment -> knowledge graph -> final summary.
-"""
 
 from __future__ import annotations
 
@@ -22,19 +11,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from app.core.config import PROJECT_ROOT, get_settings  # noqa: E402
-from app.core.database import new_session  # noqa: E402
-from app.core.logging import configure_logging  # noqa: E402
-from app.memory import graph as kg  # noqa: E402
-from app.memory.retrieval import MemoryRetriever, parse_natural_query  # noqa: E402
-from app.memory.store import MemoryStore  # noqa: E402
-from app.models import EvaluationResult, Experiment, Finding, MemoryRecord, Run  # noqa: E402
-from app.orchestration.evaluation import start_comparison  # noqa: E402
-from app.orchestration.manager import RunManager  # noqa: E402
-from app.orchestration.recovery import bootstrap  # noqa: E402
-from app.schemas.api import CompareRequest, RunCreate  # noqa: E402
+from app.core.config import PROJECT_ROOT, get_settings
+from app.core.database import new_session
+from app.core.logging import configure_logging
+from app.memory import graph as kg
+from app.memory.retrieval import MemoryRetriever, parse_natural_query
+from app.memory.store import MemoryStore
+from app.models import EvaluationResult, Experiment, Finding, MemoryRecord, Run
+from app.orchestration.evaluation import start_comparison
+from app.orchestration.manager import RunManager
+from app.orchestration.recovery import bootstrap
+from app.schemas.api import CompareRequest, RunCreate
 
 
 def step(n: int, text: str) -> None:

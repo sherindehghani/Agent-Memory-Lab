@@ -1,12 +1,3 @@
-"""Common agent interface.
-
-Each agent declares a name, role, input/output schema and the tools it may use.
-``Agent.run`` validates the input, executes, validates the output, and persists
-an :class:`~app.models.AgentAction` including which memories were retrieved.
-Agents reach shared memory only through the ``store``/``retriever`` interfaces
-in :class:`AgentContext`.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -42,14 +33,14 @@ class AgentContext:
     rng: random.Random
     should_stop: Callable[[], bool] = lambda: False
     execution_mode: str = "subprocess"
-    llm: Any = None  # optional app.agents.llm.LLMClient
+    llm: Any = None
     experiment_id: str | None = None
 
 
 @dataclass
 class AgentResult:
     agent_id: str
-    status: str  # success | error
+    status: str
     output: BaseModel | None
     error: str | None
     action_id: str
@@ -80,7 +71,7 @@ class Agent(ABC):
         try:
             output = self.output_schema.model_validate(self.execute(ctx, inp).model_dump())
             status = "success"
-        except Exception as exc:  # recorded, never swallowed silently
+        except Exception as exc:
             status, error = "error", f"{type(exc).__name__}: {exc}"
             log_event(logger, "agent_error", error, run_id=ctx.run_id, experiment_id=ctx.experiment_id,
                       agent_id=self.agent_id, level=logging.ERROR)

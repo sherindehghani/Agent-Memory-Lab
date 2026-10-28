@@ -23,7 +23,6 @@ def list_agents(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
 @router.get("/{agent_id}/activity")
 def agent_activity(agent_id: str, run_id: str | None = None, limit: int = Query(50, ge=1, le=MAX_PAGE),
                    offset: int = Query(0, ge=0), db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Actions (with retrieved memories) and messages sent/received by an agent."""
     if db.get(Agent, agent_id) is None:
         raise not_found("agent", agent_id)
     stmt = select(AgentAction).where(AgentAction.agent_id == agent_id)

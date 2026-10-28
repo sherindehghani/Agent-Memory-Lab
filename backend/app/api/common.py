@@ -1,5 +1,3 @@
-"""Shared API helpers: consistent errors, pagination, serialisation."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -48,5 +46,4 @@ def experiments_out(session: Session, exps: list[Experiment]) -> list[Experiment
 
 
 def namespace_filter(column: Any, namespace: str) -> Any:
-    """``*`` selects every namespace; anything else is an exact match."""
     return true() if namespace == "*" else column == namespace

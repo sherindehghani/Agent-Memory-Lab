@@ -37,7 +37,6 @@ const dot = (color: string, ring = false) => (
   </svg>
 );
 
-/** Validation F1 per experiment (dots by decision) with the accepted-baseline F1 as a step line. */
 export function F1Chart({ series }: { series: Overview["f1_series"] }) {
   let baseline: number | null = null;
   const data = series.map((p) => {
@@ -112,7 +111,6 @@ export const COMPARISON_METRICS: { key: string; label: string; digits: number }[
   { key: "final_baseline_test_f1", label: "Held-out test F1 (info only)", digits: 4 },
 ];
 
-/** Small multiples: one bar pair per metric, so differently-scaled measures never share an axis. */
 export function ComparisonCharts({ aggregate }: { aggregate: Record<string, Record<string, number | null>> }) {
   const off = aggregate.memory_disabled ?? {};
   const on = aggregate.memory_enabled ?? {};

@@ -1,15 +1,3 @@
-"""Git-backed experiment versioning in an isolated workspace repository.
-
-Each experiment gets a commit whose *parent is the commit of the experiment it
-was derived from* (built with ``git commit-tree``), so the Git DAG mirrors
-experiment derivation and ``git diff <parent> <child>`` shows exactly the
-configuration change. Commits are referenced by ``refs/experiments/<id>``.
-
-Only small JSON config artifacts are committed. Metrics live in the database;
-the accepted baseline is a database pointer, never inferred from Git.
-All commands are argument lists (no shell) and paths are confined to the workspace.
-"""
-
 from __future__ import annotations
 
 import json
@@ -39,7 +27,6 @@ class GitWorkspace:
         self.repo = self.root / "experiments"
         self.artifacts = self.root / "artifacts"
 
-    # -- helpers ---------------------------------------------------------
     def _git(self, *args: str, input: str | None = None) -> str:
         env = {
             **os.environ,
@@ -72,9 +59,7 @@ class GitWorkspace:
         if not ID_PATTERN.match(experiment_id):
             raise GitError(f"invalid experiment id {experiment_id!r}")
 
-    # -- lifecycle -------------------------------------------------------
     def init(self) -> str:
-        """Create the workspace repo (idempotent). Returns the root commit."""
         self.repo.mkdir(parents=True, exist_ok=True)
         self.artifacts.mkdir(parents=True, exist_ok=True)
         if not (self.repo / ".git").exists():
@@ -90,7 +75,6 @@ class GitWorkspace:
 
     def commit_experiment(self, experiment_id: str, artifact: dict[str, Any], parent_commit: str | None,
                           message: str) -> str:
-        """Commit ``config.json`` for an experiment on top of ``parent_commit``."""
         self._check_id(experiment_id)
         parent = parent_commit if parent_commit and self.commit_exists(parent_commit) else self.root_commit()
         content = json.dumps(artifact, indent=2, sort_keys=True) + "\n"
@@ -107,7 +91,6 @@ class GitWorkspace:
         self.save_artifact(experiment_id, "config.json", artifact)
         return commit
 
-    # -- queries ---------------------------------------------------------
     def commit_exists(self, sha: str | None) -> bool:
         if not sha or not SHA_PATTERN.match(sha):
             return False

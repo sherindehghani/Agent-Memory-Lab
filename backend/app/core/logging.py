@@ -1,5 +1,3 @@
-"""Structured (JSON) logging with run/experiment/agent identifiers."""
-
 from __future__ import annotations
 
 import json

@@ -37,7 +37,6 @@ def list_memory(namespace: str = "main", category: str | None = None, kind: str 
 
 @router.post("/search")
 def search_memory(body: MemorySearchRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Natural-language (rule-parsed) or structured retrieval with transparent ranking."""
     if not body.query and not body.filters:
         raise api_error(422, "invalid_query", "Provide 'query' or 'filters'.")
     try:
@@ -73,7 +72,6 @@ def get_memory(memory_id: str, db: Session = Depends(get_db)) -> MemoryRecord:
 
 @router.get("/{memory_id}/evidence")
 def memory_evidence(memory_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Resolve the measurements behind a memory. Missing references are reported, not hidden."""
     record = db.get(MemoryRecord, memory_id)
     if record is None:
         raise not_found("memory", memory_id)

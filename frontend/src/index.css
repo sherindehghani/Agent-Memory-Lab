@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens. Chart colours follow the validated reference palette
-   (categorical slots 1-2 for the two conditions; status colours for decisions). */
 :root {
   color-scheme: light;
   --surface-0: #f4f4f2;

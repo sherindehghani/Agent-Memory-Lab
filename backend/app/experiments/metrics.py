@@ -1,5 +1,3 @@
-"""Metric calculation and validation."""
-
 from __future__ import annotations
 
 import math
@@ -35,7 +33,6 @@ def classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, 
 
 
 def validate_metrics(metrics: Any) -> list[str]:
-    """Return a list of problems; empty means the metrics are usable for a decision."""
     if not isinstance(metrics, dict):
         return ["metrics must be an object"]
     errors: list[str] = []

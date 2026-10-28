@@ -1,14 +1,3 @@
-"""Experiment Manager: drives agents through the run state machine.
-
-One iteration:  PLANNING (Researcher -> Planner) -> READY -> EXECUTING (Executor)
--> EVALUATING (Evaluator) -> STORING_MEMORY (metrics, baseline pointer, memories,
-findings, graph relationships) -> PLANNING ... -> COMPLETED.
-
-Only one run (or evaluation) executes at a time in a process (``_RUN_LOCK``),
-and the database rejects a new run while another is active, so two runs can
-never race on the same baseline pointer.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -85,12 +74,8 @@ class RunManager:
         self.planner, self.executor = PlannerAgent(), ExecutorAgent()
         self.evaluator, self.researcher = EvaluatorAgent(), ResearcherAgent()
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
     def launch(self, request: RunCreate, *, background: bool = True, namespace: str = "main",
                parent_run_id: str | None = None) -> str:
-        """Create a run and execute it (in a thread by default). Raises ConflictError if busy."""
         if not _RUN_LOCK.acquire(blocking=False):
             raise ConflictError("Another run or evaluation is currently executing.")
         try:
@@ -147,7 +132,6 @@ class RunManager:
             return run
 
     def resume(self, run_id: str, *, background: bool = True) -> str:
-        """Start a new run continuing from the namespace's last accepted baseline."""
         with self.session_factory() as session:
             old = session.get(Run, run_id)
             if old is None:
@@ -158,7 +142,7 @@ class RunManager:
             request = RunCreate(objective=old.objective, memory_enabled=old.memory_enabled,
                                 planner_mode=old.planner_mode, max_experiments=old.max_experiments,
                                 max_duration_seconds=old.max_duration_seconds, max_retries=old.max_retries,
-                                seed=old.seed, initial_model_type=old.initial_model_type,  # type: ignore[arg-type]
+                                seed=old.seed, initial_model_type=old.initial_model_type,
                                 initial_configuration=old.initial_configuration)
             namespace = old.namespace
         new_run_id = self.launch(request, background=background, namespace=namespace, parent_run_id=run_id)
@@ -168,9 +152,6 @@ class RunManager:
             session.commit()
         return new_run_id
 
-    # ------------------------------------------------------------------
-    # Execution
-    # ------------------------------------------------------------------
     def _stop_requested(self, run_id: str) -> bool:
         with self.session_factory() as s:
             return bool(s.scalar(select(Run.stop_requested).where(Run.id == run_id)))
@@ -196,7 +177,7 @@ class RunManager:
 
             t0 = time.monotonic()
             executed = 0
-            while True:  # invariant: the run is in PLANNING here
+            while True:
                 if self._stop_requested(run_id):
                     run.stop_reason = "stop requested"
                     transition(session, run, RunState.CANCELLED, "Stopped by user before planning")
@@ -247,7 +228,7 @@ class RunManager:
 
     def _send(self, ctx: AgentContext, sender: str, recipient: str, message_type: str,
               experiment_id: str | None, payload: dict[str, Any]) -> None:
-        msg = AgentMessageSchema(sender=sender, recipient=recipient, message_type=message_type,  # type: ignore[arg-type]
+        msg = AgentMessageSchema(sender=sender, recipient=recipient, message_type=message_type,
                                  run_id=ctx.run_id, experiment_id=experiment_id, payload=payload)
         ctx.session.add(AgentMessage(id=new_id("msg"), run_id=msg.run_id, experiment_id=msg.experiment_id,
                                      sender=msg.sender, recipient=msg.recipient, message_type=msg.message_type,
@@ -266,8 +247,6 @@ class RunManager:
         baseline = store.get_baseline()
         initial_type, initial_cfg = run.initial_model_type, run.initial_configuration
         if baseline is not None and baseline.protocol_version != runner.PROTOCOL_VERSION:
-            # Scores from another protocol are not comparable: re-measure the old baseline's
-            # configuration under the current protocol and make that the new baseline.
             record_event(session, run.id, "protocol_changed",
                          f"Baseline {baseline.id} was measured with {baseline.protocol_version}; re-baselining its "
                          f"configuration under {runner.PROTOCOL_VERSION}.")
@@ -275,24 +254,23 @@ class RunManager:
             baseline = None
         snapshot = self._snapshot(ctx, baseline)
 
-        # -- PLANNING: Researcher (memory enabled) then Planner -------------
         suggestion: ResearchSuggestion | None = None
         action_ids: list[str] = []
         if run.memory_enabled and snapshot is not None:
             r = self.researcher.run(ctx, ResearcherInput(objective=run.objective, baseline=snapshot))
             action_ids.append(r.action_id)
-            if r.status == "success" and r.output.suggestion:  # type: ignore[union-attr]
-                suggestion = r.output.suggestion  # type: ignore[union-attr]
+            if r.status == "success" and r.output.suggestion:
+                suggestion = r.output.suggestion
                 self._send(ctx, "researcher_01", "planner_01", "research_suggestion", None,
                            suggestion.model_dump(mode="json"))
         p = self.planner.run(ctx, PlannerInput(
             objective=run.objective, baseline=snapshot, initial_model_type=initial_type,
             initial_configuration=initial_cfg, memory_enabled=run.memory_enabled,
-            mode=run.planner_mode, iteration=index, research_suggestion=suggestion))  # type: ignore[arg-type]
+            mode=run.planner_mode, iteration=index, research_suggestion=suggestion))
         action_ids.append(p.action_id)
         if p.status != "success":
             raise RuntimeError(f"planner failed: {p.error}")
-        plan: PlannerOutput = p.output  # type: ignore[assignment]
+        plan: PlannerOutput = p.output
         if plan.exhausted:
             record_event(session, run.id, "search_exhausted", plan.reasoning_summary, agent_id="planner_01")
             return "exhausted"
@@ -318,18 +296,17 @@ class RunManager:
         session.flush()
         ctx.experiment_id = exp.id
         for aid in action_ids:
-            session.get(AgentAction, aid).experiment_id = exp.id  # type: ignore[union-attr]
+            session.get(AgentAction, aid).experiment_id = exp.id
         self._send(ctx, "planner_01", "executor_01", "experiment_proposal", exp.id, plan.model_dump(mode="json"))
         transition(session, run, RunState.READY, f"Planned {exp.id}", experiment_id=exp.id)
         session.commit()
 
-        # -- EXECUTING ---------------------------------------------------------
         transition(session, run, RunState.EXECUTING, f"Executing {exp.id}", experiment_id=exp.id)
         exp.status, exp.started_at = "running", utcnow()
         session.commit()
         record_event(session, run.id, "experiment_started", f"{exp.model_type} {exp.configuration}",
                      experiment_id=exp.id, agent_id="executor_01")
-        session.commit()  # never hold SQLite's write lock while a model trains (stop requests must get through)
+        session.commit()
         artifact = {"experiment_id": exp.id, "run_id": run.id, "model_type": exp.model_type,
                     "configuration": exp.configuration, "parent_experiment_id": exp.parent_experiment_id,
                     "hypothesis": exp.hypothesis, "seed": exp.seed, "dataset_version": exp.dataset_version,
@@ -341,13 +318,13 @@ class RunManager:
             commit_message=f"{exp.id}: {', '.join(exp.moves) or 'initial'} — {exp.hypothesis}"))
         if e.status == "success":
             out = e.output
-            status, metrics, error = out.status, out.metrics, out.error  # type: ignore[union-attr]
-            exp.git_commit, exp.attempts = out.git_commit, out.attempts  # type: ignore[union-attr]
-            if out.git_commit:  # type: ignore[union-attr]
-                record_event(session, run.id, "git_commit", f"Committed config as {out.git_commit}",  # type: ignore[union-attr]
+            status, metrics, error = out.status, out.metrics, out.error
+            exp.git_commit, exp.attempts = out.git_commit, out.attempts
+            if out.git_commit:
+                record_event(session, run.id, "git_commit", f"Committed config as {out.git_commit}",
                              experiment_id=exp.id, agent_id="executor_01")
-            if out.git_error:  # type: ignore[union-attr]
-                record_event(session, run.id, "git_error", out.git_error, experiment_id=exp.id,  # type: ignore[union-attr]
+            if out.git_error:
+                record_event(session, run.id, "git_error", out.git_error, experiment_id=exp.id,
                              level=logging.WARNING)
         else:
             status, metrics, error = "failed", None, e.error
@@ -367,7 +344,6 @@ class RunManager:
                    {"status": status, "metrics": metrics, "error": error, "attempts": exp.attempts,
                     "git_commit": exp.git_commit})
 
-        # -- EVALUATING ----------------------------------------------------------
         transition(session, run, RunState.EVALUATING, f"Evaluating {exp.id}", experiment_id=exp.id)
         v = self.evaluator.run(ctx, EvaluatorInput(
             experiment_id=exp.id, status=status, metrics=metrics, error=error, baseline=snapshot,
@@ -376,23 +352,22 @@ class RunManager:
             raise RuntimeError(f"evaluator failed: {v.error}")
         ev = v.output
         exp.status = "completed" if status == "completed" else "failed"
-        exp.decision, exp.decision_reason = ev.decision, ev.reason  # type: ignore[union-attr]
-        exp.primary_delta, exp.secondary_deltas = ev.primary_delta, ev.secondary_deltas  # type: ignore[union-attr]
-        exp.hypothesis_outcome, exp.hypothesis_details = ev.hypothesis_outcome, ev.hypothesis_details  # type: ignore[union-attr]
-        record_event(session, run.id, "evaluation_decision", f"{ev.decision}: {ev.reason}",  # type: ignore[union-attr]
+        exp.decision, exp.decision_reason = ev.decision, ev.reason
+        exp.primary_delta, exp.secondary_deltas = ev.primary_delta, ev.secondary_deltas
+        exp.hypothesis_outcome, exp.hypothesis_details = ev.hypothesis_outcome, ev.hypothesis_details
+        record_event(session, run.id, "evaluation_decision", f"{ev.decision}: {ev.reason}",
                      experiment_id=exp.id, agent_id="evaluator_01")
-        self._send(ctx, "evaluator_01", "broadcast", "evaluation_decision", exp.id, ev.model_dump(mode="json"))  # type: ignore[union-attr]
+        self._send(ctx, "evaluator_01", "broadcast", "evaluation_decision", exp.id, ev.model_dump(mode="json"))
 
-        # -- STORING_MEMORY ----------------------------------------------------------
         transition(session, run, RunState.STORING_MEMORY, f"Storing memory for {exp.id}", experiment_id=exp.id)
         if metrics:
             finite = {k: v for k, v in metrics.items() if isinstance(v, (int, float)) and math.isfinite(v)}
             store.save_metrics(exp.id, finite)
         if exp.decision == "accepted":
-            store.set_baseline(exp, ev.reason)  # type: ignore[union-attr]
+            store.set_baseline(exp, ev.reason)
             record_event(session, run.id, "baseline_updated", f"Accepted baseline is now {exp.id}",
                          experiment_id=exp.id, data={"previous": baseline.id if baseline else None})
-        self._store_memories(ctx, run, exp, ev.secondary_improvements, metrics,  # type: ignore[union-attr]
+        self._store_memories(ctx, run, exp, ev.secondary_improvements, metrics,
                              {"plan": p.action_id, "execute": e.action_id, "evaluate": v.action_id}, suggestion
                              if plan.plan_source == "research_suggestion" else None)
         self._send(ctx, "evaluator_01", "broadcast", "memory_stored", exp.id,
@@ -400,9 +375,6 @@ class RunManager:
         session.flush()
         return "done"
 
-    # ------------------------------------------------------------------
-    # Memory + graph writes
-    # ------------------------------------------------------------------
     def _store_memories(self, ctx: AgentContext, run: Run, exp: Experiment, improvements: list[dict[str, Any]],
                         metrics: dict[str, float] | None, actions: dict[str, str],
                         suggestion: ResearchSuggestion | None) -> None:
@@ -477,7 +449,6 @@ class RunManager:
                          f"Research suggestion {suggestion.memory_id} -> {status} by {exp.id}", experiment_id=exp.id,
                          agent_id="evaluator_01")
 
-        # -- graph relationships (validated against real records) --------------
         X = f"experiment:{exp.id}"
         rels: list[tuple[str, str, str, str]] = [
             ("agent:planner_01", "PROPOSED", X, f"action:{actions['plan']}"),
@@ -507,7 +478,7 @@ class RunManager:
         for src, rel, tgt, evidence in rels:
             try:
                 add_relationship(session, ns, src, rel, tgt, evidence)
-            except GraphEvidenceError as exc:  # never invent a relationship
+            except GraphEvidenceError as exc:
                 record_event(session, run.id, "graph_relationship_rejected", str(exc), experiment_id=exp.id,
                              level=logging.WARNING)
 
@@ -516,18 +487,14 @@ class RunManager:
         self._finalize(ctx, run)
         transition(ctx.session, run, RunState.COMPLETED, reason)
 
-    # ------------------------------------------------------------------
     def _finalize(self, ctx: AgentContext, run: Run) -> None:
-        """Final held-out test evaluation of the namespace's accepted baseline.
-
-        The test split is touched only here, after all selection decisions."""
         baseline = ctx.store.get_baseline()
         run.end_baseline_experiment_id = baseline.id if baseline else None
         if baseline is None or ctx.store.metrics_of(baseline.id, "test"):
             return
-        ctx.session.commit()  # release the write lock before training
+        ctx.session.commit()
         outcome = runner.execute(baseline.model_type, baseline.configuration, baseline.seed, split="test",
-                                 timeout=self.settings.experiment_timeout_seconds, mode=self.settings.execution_mode)  # type: ignore[arg-type]
+                                 timeout=self.settings.experiment_timeout_seconds, mode=self.settings.execution_mode)
         if outcome.status == "completed" and outcome.metrics:
             ctx.store.save_metrics(baseline.id, {k: outcome.metrics[k] for k in
                                                  ("accuracy", "f1", "precision", "recall")}, split="test")
@@ -540,7 +507,6 @@ class RunManager:
 
 
 def build_summary(session: Session, run: Run, workspace: GitWorkspace | None = None) -> dict[str, Any]:
-    """Run summary computed from stored records only."""
     exps = session.scalars(select(Experiment).where(Experiment.run_id == run.id).order_by(Experiment.sequence)).all()
     store = MemoryStore(session, run.namespace)
     seen_before = set(session.scalars(select(Experiment.config_hash).where(

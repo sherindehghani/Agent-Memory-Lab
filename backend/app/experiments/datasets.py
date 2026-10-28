@@ -1,10 +1,3 @@
-"""Fixed dataset + split. Agents never touch this module's data directly.
-
-Split: 60% train / 20% validation / 20% held-out test, stratified, fixed seed.
-The held-out test split is used only for the final evaluation of a run's
-final baseline — never to guide experiment selection.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,7 +25,7 @@ class DatasetSplits:
 
 def _readonly(a: np.ndarray) -> np.ndarray:
     a = np.ascontiguousarray(a)
-    a.setflags(write=False)  # guard against accidental mutation of evaluation data
+    a.setflags(write=False)
     return a
 
 
