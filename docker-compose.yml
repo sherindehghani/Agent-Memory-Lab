@@ -1,0 +1,22 @@
+# Optional convenience; the app also runs without Docker (see README).
+services:
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    ports: ["8000:8000"]
+    env_file: { path: .env, required: false }
+    environment:
+      LAB_DATABASE_URL: sqlite:////data/lab.db
+      LAB_WORKSPACE_DIR: /workspace
+      LAB_CORS_ORIGINS: '["http://localhost:5173"]'
+    volumes:
+      - lab-data:/data
+      - lab-workspace:/workspace
+  frontend:
+    build: { context: frontend }
+    ports: ["5173:5173"]
+    environment:
+      VITE_API_PROXY: http://backend:8000
+    depends_on: [backend]
+volumes:
+  lab-data:
+  lab-workspace:

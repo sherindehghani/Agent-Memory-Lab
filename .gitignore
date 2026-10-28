@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local state (never committed): database, experiment workspace (its own Git repo), secrets
+data/
+workspace/
+*.db
+*.db-wal
+*.db-shm
+.env

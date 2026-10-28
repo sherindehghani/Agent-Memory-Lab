@@ -1,0 +1,2 @@
+# Optional: only needed when LAB_LLM_PROVIDER=anthropic
+anthropic>=0.70
