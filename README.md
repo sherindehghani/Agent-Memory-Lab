@@ -419,3 +419,9 @@ spread, or a paired test across folds); multi-objective acceptance
 planner policies (Bayesian optimisation over memory); parallel experiment workers with a proper queue;
 authentication; memory consolidation (merging repeated findings) and expiry; more evaluation seeds with
 significance testing.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Shirin Dehghani
