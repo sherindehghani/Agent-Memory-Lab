@@ -8,7 +8,6 @@ from app.experiments.search_space import UPSIZING_MOVES, neighbours
 from app.memory.retrieval import MemoryQuery, MetricGoal
 from app.schemas.agents import ExpectedEffect, ResearcherInput, ResearcherOutput, ResearchSuggestion
 
-
 MAX_F1_LOSS = 0.02
 
 

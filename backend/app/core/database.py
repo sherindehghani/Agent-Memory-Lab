@@ -91,8 +91,9 @@ def get_db() -> Iterator[Session]:
 
 
 def run_migrations(url: str | None = None) -> None:
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     url = url or get_settings().database_url
     _ensure_sqlite_dir(url)

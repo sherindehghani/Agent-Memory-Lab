@@ -85,7 +85,7 @@ def _prune_imports(source: str) -> str:
         elif isinstance(node, ast.Import):
             if all((a.asname or a.name).split(".")[0] not in used for a in node.names):
                 drop.add(node.lineno - 1)
-    return "\n".join(l for i, l in enumerate(lines) if i not in drop).lstrip("\n") + "\n"
+    return "\n".join(line for i, line in enumerate(lines) if i not in drop).lstrip("\n") + "\n"
 
 
 def _rewrite(body: str, imports: list[str]) -> Callable[[str], str | None]:

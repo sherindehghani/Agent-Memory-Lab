@@ -30,7 +30,7 @@ def list_memory(namespace: str = "main", category: str | None = None, kind: str 
         if val:
             stmt = stmt.where(col == val)
     if q:
-        stmt = stmt.where(or_(*[MemoryRecord.search_text.contains(w.lower()) for w in q.split()]))
+        stmt = stmt.where(or_(*[MemoryRecord.search_text.contains(w.lower(), autoescape=True) for w in q.split()]))
     items, total = paginate(db, stmt.order_by(MemoryRecord.created_at.desc()), limit, offset)
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 

@@ -55,7 +55,8 @@ async def request_context(request: Request, call_next):
     elapsed_ms = (time.perf_counter() - start) * 1000
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.1f}"
-    logger.info("request", extra={"event_type": "http_request", "data": {
+    level = logging.DEBUG if request.url.path.startswith("/api/health") else logging.INFO
+    logger.log(level, "request", extra={"event_type": "http_request", "data": {
         "request_id": request_id, "method": request.method, "path": request.url.path,
         "status": response.status_code, "duration_ms": round(elapsed_ms, 1)}})
     return response

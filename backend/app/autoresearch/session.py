@@ -4,7 +4,7 @@ import logging
 import random
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -53,7 +53,7 @@ def launch(manager: RunManager, request: AutoresearchCreate, *, background: bool
             active = s.scalar(select(Run.id).where(Run.state.in_([x.value for x in ACTIVE])).limit(1))
             if active:
                 raise ConflictError(f"Run {active} is still active; stop it or wait for it to finish.")
-            tag = request.tag or datetime.now(timezone.utc).strftime("%b%d").lower()
+            tag = request.tag or datetime.now(UTC).strftime("%b%d").lower()
             timeout = request.run_timeout_seconds or manager.settings.autoresearch_run_timeout_seconds
             run = Run(id=new_id("run"), namespace=NAMESPACE, objective="Maximise cross-validated F1 by editing train.py",
                       state=RunState.CREATED.value, memory_enabled=True, planner_mode=f"autoresearch:{request.proposer}",
