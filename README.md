@@ -488,7 +488,7 @@ significance testing.
 
 ## License
 
-[MIT](LICENSE) © 2026 Shirin Dehghani
+[MIT](LICENSE) © 2026 Sherin Dehghani
 
 ## Production & scaling
 
