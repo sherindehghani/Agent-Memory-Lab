@@ -1,13 +1,13 @@
 PY ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 
-.PHONY: install install-backend install-frontend migrate backend frontend test build demo demo-fresh autoresearch compare clean-local
+.PHONY: install install-backend install-frontend migrate backend frontend test build demo demo-fresh autoresearch compare clean-local lint up down
 
 install: install-backend install-frontend
 
 install-backend:
 	python3 -m venv .venv
-	$(PIP) install -r backend/requirements.txt
+	$(PIP) install -r backend/requirements.txt -r backend/requirements-dev.txt
 
 install-frontend:
 	cd frontend && npm install
@@ -41,3 +41,12 @@ compare:
 
 clean-local:
 	rm -rf data workspace
+
+lint:
+	cd backend \&\& ../.venv/bin/ruff check app
+
+up:
+	docker compose up --build -d
+
+down:
+	docker compose down

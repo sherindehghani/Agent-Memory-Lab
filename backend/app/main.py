@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -8,10 +10,12 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app import __version__
 from app.api import agents, autoresearch, evaluation, experiments, graph, memory, runs
 from app.core.config import get_settings
 from app.core.database import session_scope
@@ -34,12 +38,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="AI Agent Memory Lab",
-    version="0.1.0",
+    version=__version__,
     description="Agents that run reproducible ML experiments, share persistent memory, and plan from evidence.",
     lifespan=lifespan,
 )
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"],
-                   allow_headers=["*"])
+                   allow_headers=["*"], expose_headers=["X-Request-ID", "X-Process-Time-Ms"])
+app.add_middleware(GZipMiddleware, minimum_size=get_settings().gzip_minimum_size)
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.1f}"
+    logger.info("request", extra={"event_type": "http_request", "data": {
+        "request_id": request_id, "method": request.method, "path": request.url.path,
+        "status": response.status_code, "duration_ms": round(elapsed_ms, 1)}})
+    return response
 
 
 def _error(status: int, code: str, message: str, details: Any = None) -> JSONResponse:
@@ -69,6 +88,21 @@ async def database_error(_: Request, exc: SQLAlchemyError) -> JSONResponse:
 async def unhandled_error(_: Request, exc: Exception) -> JSONResponse:
     logger.exception("unhandled error", extra={"event_type": "internal_error"})
     return _error(500, "internal_error", "Internal server error; see server logs.")
+
+
+@app.get("/api/health/live", tags=["health"])
+def liveness() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/api/health/ready", tags=["health"])
+def readiness() -> JSONResponse:
+    try:
+        with session_scope() as s:
+            s.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(status_code=503, content={"status": "unavailable", "database": "error"})
+    return JSONResponse(content={"status": "ok", "database": "ok"})
 
 
 @app.get("/api/health", tags=["health"])

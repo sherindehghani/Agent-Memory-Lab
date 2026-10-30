@@ -489,3 +489,19 @@ significance testing.
 ## License
 
 [MIT](LICENSE) © 2026 Shirin Dehghani
+
+## Production & scaling
+
+- **Database**: SQLite is the zero-config default. For multi-user or production deployments set
+  `LAB_DATABASE_URL=postgresql+psycopg://…`; the engine then uses a connection pool
+  (`LAB_DB_POOL_SIZE`, `LAB_DB_MAX_OVERFLOW`, `LAB_DB_POOL_TIMEOUT_SECONDS`, `LAB_DB_POOL_RECYCLE_SECONDS`)
+  with pre-ping health checks. `docker compose up` (`make up`) runs the stack on PostgreSQL 16.
+- **Health probes**: `/api/health/live` (liveness) and `/api/health/ready` (readiness, checks the DB) for
+  Kubernetes / load balancers; `/api/health` keeps the detailed status.
+- **Observability**: every response carries `X-Request-ID` (propagated if the client sends one) and
+  `X-Process-Time-Ms`; each request is logged as structured JSON.
+- **Container**: non-root user, Docker `HEALTHCHECK`, GZip compression for large responses.
+- **Concurrency note**: run orchestration uses an in-process lock, so run one API process per workspace;
+  scale reads horizontally behind a shared PostgreSQL only once run scheduling moves to a queue.
+- **CI**: GitHub Actions runs lint, backend tests, frontend build and the Docker build on every PR.
+- **Dev tooling**: `make lint`, `make test`, `make up` / `make down`.

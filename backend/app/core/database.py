@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -23,20 +24,34 @@ def _ensure_sqlite_dir(url: str) -> None:
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _engine_options(url: str) -> dict[str, Any]:
+    if url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False, "timeout": 30}}
+    settings = get_settings()
+    return {
+        "pool_size": settings.db_pool_size,
+        "max_overflow": settings.db_max_overflow,
+        "pool_timeout": settings.db_pool_timeout_seconds,
+        "pool_recycle": settings.db_pool_recycle_seconds,
+        "pool_pre_ping": True,
+    }
+
+
 def init_engine(url: str | None = None) -> Engine:
     global _engine, _session_factory
     url = url or get_settings().database_url
     _ensure_sqlite_dir(url)
     if _engine is not None:
         _engine.dispose()
-    engine = create_engine(url, connect_args={"check_same_thread": False, "timeout": 30})
+    engine = create_engine(url, **_engine_options(url))
 
-    @event.listens_for(engine, "connect")
-    def _sqlite_pragmas(dbapi_conn, _record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
+    if engine.dialect.name == "sqlite":
+        @event.listens_for(engine, "connect")
+        def _sqlite_pragmas(dbapi_conn, _record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.close()
 
     _engine = engine
     _session_factory = sessionmaker(bind=engine, expire_on_commit=False)
