@@ -23,3 +23,8 @@ def test_engine_options_use_pooling_for_server_databases(settings):
     assert "pool_size" not in _engine_options("sqlite:///x.db")
     opts = _engine_options("postgresql+psycopg://u:p@h/db")
     assert opts["pool_pre_ping"] is True and opts["pool_size"] >= 1
+
+
+def test_memory_text_filter_treats_sql_wildcards_literally(client):
+    assert client.get("/api/memory").json()["total"] > 0
+    assert client.get("/api/memory", params={"q": "%"}).json()["total"] == 0
