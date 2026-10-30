@@ -1,19 +1,35 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lab}
+      POSTGRES_DB: lab
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 5s
+      retries: 10
   backend:
     build: { context: ., dockerfile: backend/Dockerfile }
     ports: ["8000:8000"]
     environment:
-      LAB_DATABASE_URL: sqlite:////data/lab.db
+      LAB_DATABASE_URL: postgresql+psycopg://lab:${POSTGRES_PASSWORD:-lab}@postgres:5432/lab
       LAB_WORKSPACE_DIR: /workspace
+      LAB_ENVIRONMENT: ${LAB_ENVIRONMENT:-development}
       LAB_CORS_ORIGINS: '["http://localhost:5173"]'
+      LAB_DB_POOL_SIZE: ${LAB_DB_POOL_SIZE:-10}
       LAB_MAX_EXPERIMENTS: ${LAB_MAX_EXPERIMENTS:-5}
       LAB_MAX_RUN_SECONDS: ${LAB_MAX_RUN_SECONDS:-600}
       LAB_EXECUTION_MODE: ${LAB_EXECUTION_MODE:-subprocess}
       LAB_LLM_PROVIDER: ${LAB_LLM_PROVIDER:-none}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
-      - lab-data:/data
       - lab-workspace:/workspace
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
   frontend:
     build: { context: frontend }
     ports: ["5173:5173"]
@@ -21,5 +37,5 @@ services:
       VITE_API_PROXY: http://backend:8000
     depends_on: [backend]
 volumes:
-  lab-data:
+  pg-data:
   lab-workspace:

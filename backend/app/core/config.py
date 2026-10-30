@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     )
 
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'data' / 'lab.db'}"
+    db_pool_size: int = Field(10, ge=1, le=200)
+    db_max_overflow: int = Field(20, ge=0, le=500)
+    db_pool_timeout_seconds: int = Field(30, ge=1, le=300)
+    db_pool_recycle_seconds: int = Field(1800, ge=60)
     workspace_dir: Path = PROJECT_ROOT / "workspace"
 
     random_seed: int = 42
@@ -37,6 +41,8 @@ class Settings(BaseSettings):
 
     autoresearch_run_timeout_seconds: int = Field(120, ge=10, le=900)
 
+    environment: Literal["development", "staging", "production"] = "development"
+    gzip_minimum_size: int = Field(1024, ge=0)
     log_level: str = "INFO"
     log_json: bool = True
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
