@@ -43,7 +43,7 @@ clean-local:
 	rm -rf data workspace
 
 lint:
-	cd backend \&\& ../.venv/bin/ruff check app
+	cd backend && ../.venv/bin/ruff check app tests
 
 up:
 	docker compose up --build -d

@@ -4,6 +4,9 @@ A local, runnable MVP showing how autonomous agents can **run real ML experiment
 (including rejected experiments), share persistent memory, retrieve earlier evidence, and use it to plan
 the next experiment**.
 
+Companion code for the article **[AI Agent Memory: What Happens After an Overnight Run?](https://sherindehghani.medium.com/ai-agent-memory-what-happens-after-an-overnight-run-422730113413)**.
+See [How this repository maps to the article](#how-this-repository-maps-to-the-article).
+
 > The agents improve their *choices* by reading saved memory. No language-model weights are updated.
 
 Scenario: an engineer starts a run before leaving work. Agents change a model's configuration, train it,
@@ -15,6 +18,7 @@ ones, what was learned, and what is unfinished.
 
 ## Contents
 
+- [How this repository maps to the article](#how-this-repository-maps-to-the-article)
 - [Quick start](#quick-start)
 - [Autoresearch mode](#autoresearch-mode)
 - [Architecture](#architecture)
@@ -30,6 +34,37 @@ ones, what was learned, and what is unfinished.
 - [Testing](#testing)
 - [Known limitations](#known-limitations)
 - [Future improvements](#future-improvements)
+- [Production & scaling](#production--scaling)
+
+---
+
+## How this repository maps to the article
+
+The [article](https://sherindehghani.medium.com/ai-agent-memory-what-happens-after-an-overnight-run-422730113413) follows Maya, an engineer whose agent runs experiments overnight. Each idea in it
+has a concrete counterpart here:
+
+| Article | In this repository |
+|---|---|
+| The agent edits the training code, trains, measures, and keeps or rejects the change | [Autoresearch mode](#autoresearch-mode): the agent edits `train.py`; a kept change advances the branch, a rejected one is reset |
+| `prepare.py` holds fixed data and evaluation; `program.md` holds instructions; evaluation stays outside the agent's edits | the fixed harness (`backend/app/autoresearch/harness.py`) plays the role of `prepare.py`; `program.md` is editable in the dashboard; the agent can only change `train.py` |
+| A fixed time budget per training run | a per-attempt time limit (default 120 s here, not 5 minutes, because the dataset is small; `LAB_AUTORESEARCH_RUN_TIMEOUT_SECONDS`) |
+| A better validation score is not proof; check on data that did not guide the experiments | decisions use 5-fold CV on development data; a 114-sample **held-out test split** is evaluated only after all decisions and never used for selection |
+| "Reduced memory use but made the score worse" beats a bare "failed" label | rejected experiments keep their **secondary improvements** as findings; the Researcher turns one into a follow-up hypothesis |
+| Every attempt leaves a record: starting code, change, score, decision, test conditions | experiment records store parent, config diff, Git commit, metrics, decision reason, seed, dataset and protocol version |
+| Shared memory outside one agent's conversation | SQLite memory (episodic, semantic, procedural) read through `MemoryRetriever` by every agent and by later sessions |
+| Git commits form a DAG; a database links commits to scores and notes | `workspace/experiments` (`refs/experiments/*`) holds the DAG; the database stores metrics and points to commits |
+| Orchestrator, evaluator and worker patterns | Experiment Manager (orchestrator), Planner, Executor, Evaluator (rule-based feedback), Researcher |
+| Limit how many workers run at once | one active run per process (`409` on a second run), plus experiment, time and retry budgets |
+| A commit graph and a knowledge graph serve different purposes | both exist and are kept apart: the Git DAG records how configurations changed; the knowledge graph links findings to their evidence (multi-hop **evidence paths**) |
+| Connections need evidence; a path is not causation | relationships are stored only when both endpoints and an evidence reference resolve; findings are described as associations, not causes |
+| Check whether memory is reliable: save a baseline, change one thing, compare | [Memory evaluation](#memory-evaluation): memory on vs. off from isolated namespaces, same seeds, budget and rule, with cost and latency |
+| If the run stops early, the report shows what is unfinished | recovery marks interrupted runs and experiments; the run summary lists unfinished work |
+
+**Not covered here.** The article's supplier/incident example describes a knowledge graph built *from
+documents*, with extraction, entity resolution and precision/recall checks. This repository's graph is built
+from structured experiment records, so it needs no extraction or entity resolution. Parallel workers that
+split a code review are also discussed but not implemented: the lab runs one experiment at a time, which
+fits the article's advice to start with one task you can measure.
 
 ---
 
@@ -425,7 +460,7 @@ All five pages read live data from the API:
 
 Copy `.env.example` to `.env`. Variables use the `LAB_` prefix: `LAB_DATABASE_URL`, `LAB_WORKSPACE_DIR`,
 `LAB_RANDOM_SEED`, `LAB_ACCEPTANCE_THRESHOLD`, `LAB_MAX_EXPERIMENTS`, `LAB_MAX_RUN_SECONDS`,
-`LAB_MAX_RETRIES`, `LAB_EXPERIMENT_TIMEOUT_SECONDS`, `LAB_EXECUTION_MODE` (`subprocess` | `inprocess`),
+`LAB_MAX_RETRIES`, `LAB_EXPERIMENT_TIMEOUT_SECONDS`, `LAB_AUTORESEARCH_RUN_TIMEOUT_SECONDS`, `LAB_EXECUTION_MODE` (`subprocess` | `inprocess`),
 `LAB_LLM_PROVIDER`, `LAB_LLM_MODEL`, `ANTHROPIC_API_KEY`, `LAB_LOG_LEVEL`, `LAB_LOG_JSON`. Secrets are read
 from the environment and never returned by the API.
 
@@ -437,7 +472,7 @@ events are also persisted in `run_events`.
 ## Testing
 
 ```bash
-make test        # backend: 77 tests (unit, integration, end-to-end, autoresearch), ~3 min
+make test        # backend: 81 tests (unit, integration, end-to-end, autoresearch), ~1 min with `-n auto`
 make build       # frontend: type-check + production build
 ```
 
@@ -469,7 +504,6 @@ Tests use a temporary SQLite database and a temporary Git workspace per test, an
 - Natural-language search is keyword-based, with no embeddings.
 - Single process, single active run: no multi-user isolation or authentication (local MVP).
 - The memory evaluation uses few seeds and no statistical tests.
-- The frontend bundle is unsplit (~800 kB).
 - Autoresearch: the code guard is a static allowlist, not a sandbox; the offline idea bank is small; the
   time limit makes slow-but-better models lose by timeout, and timings differ between machines.
 - If something else (e.g. the Docker container) already listens on port 8000, `localhost` may reach it
@@ -486,10 +520,6 @@ significance testing.
 
 ---
 
-## License
-
-[MIT](LICENSE) © 2026 Sherin Dehghani
-
 ## Production & scaling
 
 - **Database**: SQLite is the zero-config default. For multi-user or production deployments set
@@ -505,3 +535,9 @@ significance testing.
   scale reads horizontally behind a shared PostgreSQL only once run scheduling moves to a queue.
 - **CI**: GitHub Actions runs lint, backend tests, frontend build and the Docker build on every PR.
 - **Dev tooling**: `make lint`, `make test`, `make up` / `make down`.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Sherin Dehghani
